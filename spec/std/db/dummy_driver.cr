@@ -117,6 +117,10 @@ class DummyDriver < DB::Driver
       return n
     end
 
+    def read?(t : Nil.class) : Nil?
+      read? as Nil
+    end
+
     def read?(t : String.class)
       read?.try &.to_s
     end

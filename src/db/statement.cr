@@ -35,6 +35,8 @@ module DB
       perform_exec_and_release(args.to_a.to_unsafe.to_slice(args.size))
     end
 
+    # handle clash between args : Slice(UInt8)  and Slice(T / DB::Any)
+
     # See `QueryMethods#exec`
     def exec(*args)
       # TODO better way to do it
@@ -45,25 +47,25 @@ module DB
     def scalar(*args)
       query(*args) do |rs|
         rs.each do
-          # return case rs.read?(rs.column_type(0)) # :-( Some day...
-          case rs.column_type(0)
-          when String.class
-            return rs.read?(String)
-          when Int32.class
-            return rs.read?(Int32)
-          when Int64.class
-            return rs.read?(Int64)
-          when Float32.class
-            return rs.read?(Float32)
-          when Float64.class
-            return rs.read?(Float64)
-          when Slice(UInt8).class
-            return rs.read?(Slice(UInt8))
-          when Nil.class
-            return rs.read?(Int32)
-          else
-            raise "not implemented for #{rs.column_type(0)} type"
-          end
+          return rs.read?(rs.column_type(0)) # :-( Some day...
+          # case rs.column_type(0)
+          # when String.class
+          #   return rs.read?(String)
+          # when Int32.class
+          #   return rs.read?(Int32)
+          # when Int64.class
+          #   return rs.read?(Int64)
+          # when Float32.class
+          #   return rs.read?(Float32)
+          # when Float64.class
+          #   return rs.read?(Float64)
+          # when Slice(UInt8).class
+          #   return rs.read?(Slice(UInt8))
+          # when Nil.class
+          #   return rs.read?(Int32)
+          # else
+          #   raise "not implemented for #{rs.column_type(0)} type"
+          # end
         end
       end
 
@@ -72,12 +74,12 @@ module DB
 
     # See `QueryMethods#query`
     def query(*args)
-      perform_query *args
+      _perform_query *args
     end
 
     # See `QueryMethods#query`
     def query(*args)
-      perform_query(*args).tap do |rs|
+      _perform_query(*args).tap do |rs|
         begin
           yield rs
         ensure
@@ -86,27 +88,31 @@ module DB
       end
     end
 
-    private def perform_query : ResultSet
-      perform_query(Slice(Any).new(0)) # no overload matches ... with types Slice(NoReturn)
+    private def _perform_query : ResultSet
+      perform_query(Slice(Int32).new(0)) # no overload matches ... with types Slice(NoReturn)
     end
 
-    private def perform_query(args : Enumerable(Any)) : ResultSet
+    private def _perform_query(args : Slice(UInt8)) : ResultSet
+      perform_query(Slice(Slice(UInt8)).new(1, args))
+    end
+
+    private def _perform_query(args : Enumerable(T)) : ResultSet
       # TODO better way to do it
       perform_query(args.to_a.to_unsafe.to_slice(args.size))
     end
 
-    private def perform_query(*args) : ResultSet
+    private def _perform_query(*args) : ResultSet
       # TODO better way to do it
       perform_query(args.to_a.to_unsafe.to_slice(args.size))
     end
 
-    private def perform_exec_and_release(args : Slice(Any)) : ExecResult
+    private def perform_exec_and_release(args : Slice(T)) : ExecResult
       perform_exec(args).tap do
         release_connection
       end
     end
 
-    protected abstract def perform_query(args : Slice(Any)) : ResultSet
-    protected abstract def perform_exec(args : Slice(Any)) : ExecResult
+    protected abstract def perform_query(args : Slice(T)) : ResultSet
+    protected abstract def perform_exec(args : Slice(T)) : ExecResult
   end
 end
