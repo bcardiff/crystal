@@ -10,7 +10,6 @@ module Crystal
   RAISE_NAME         = "__crystal_raise"
   MALLOC_NAME        = "__crystal_malloc"
   REALLOC_NAME       = "__crystal_realloc"
-  PERSONALITY_NAME   = "__crystal_personality"
   GET_EXCEPTION_NAME = "__crystal_get_exception"
 
   class Program
@@ -98,6 +97,8 @@ module Crystal
     getter entry_block : LLVM::BasicBlock
     property last : LLVM::Value
 
+    getter personality_name : String
+
     class LLVMVar
       getter pointer : LLVM::Value
       getter type : Type
@@ -152,6 +153,16 @@ module Crystal
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
       @main.linkage = LLVM::Linkage::Internal unless expose_crystal_main
+
+      @personality_name = if @program.has_flag?("windows")
+                            "__CxxFrameHandler3"
+                          else
+                            "__crystal_personality"
+                          end
+
+      if @program.has_flag?("windows")
+        @llvm_mod.functions.add(@personality_name, ([] of LLVM::Type), LLVM::Int32, true)
+      end
 
       emit_main_def_debug_metadata(@main, "??") unless @debug.none?
 
@@ -275,7 +286,7 @@ module Crystal
 
       def visit(node : FunDef)
         case node.name
-        when MALLOC_NAME, REALLOC_NAME, RAISE_NAME, PERSONALITY_NAME, GET_EXCEPTION_NAME
+        when MALLOC_NAME, REALLOC_NAME, RAISE_NAME, @codegen.personality_name, GET_EXCEPTION_NAME
           @codegen.accept node
         end
         false

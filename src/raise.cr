@@ -113,6 +113,10 @@ end
 
     __crystal_continue_unwind
   end
+{% elsif flag?(:windows) %}
+  lib LibWindows
+    fun cxx_throw_exception = _CxxThrowException(pExceptionObject : Void*, pThrowInfo : Void*) : NoReturn
+  end
 {% else %}
   # :nodoc:
   fun __crystal_personality(version : Int32, actions : LibUnwind::Action, exception_class : UInt64, exception_object : LibUnwind::Exception*, context : Void*) : LibUnwind::ReasonCode

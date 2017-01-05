@@ -99,7 +99,7 @@ class Crystal::CodeGenVisitor
 
       position_at_end rescue_block
       lp_ret_type = llvm_typer.landing_pad_type
-      lp = builder.landing_pad lp_ret_type, main_fun(PERSONALITY_NAME), [] of LLVM::Value
+      lp = builder.landing_pad lp_ret_type, main_fun(self.personality_name), [] of LLVM::Value
       unwind_ex_obj = extract_value lp, 0
       ex_type_id = extract_value lp, 1
 
@@ -177,7 +177,7 @@ class Crystal::CodeGenVisitor
       old_block = insert_block
       position_at_end rescue_ensure_block
       lp_ret_type = llvm_typer.landing_pad_type
-      lp = builder.landing_pad lp_ret_type, main_fun(PERSONALITY_NAME), [] of LLVM::Value
+      lp = builder.landing_pad lp_ret_type, main_fun(self.personality_name), [] of LLVM::Value
       unwind_ex_obj = extract_value lp, 0
 
       accept node_ensure
