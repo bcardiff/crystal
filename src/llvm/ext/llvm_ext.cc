@@ -499,4 +499,51 @@ void LLVMExtSetOrdering(LLVMValueRef MemAccessInst, LLVMAtomicOrdering Ordering)
   return cast<StoreInst>(P)->setOrdering(O);
 }
 
+LLVMValueRef LLVMExtBuildCatchPad(LLVMBuilderRef B, LLVMValueRef ParentPad,
+                                  unsigned ArgCount, LLVMValueRef *LLArgs, const char *Name) {
+#if LLVM_VERSION_GE(3, 8)
+  Value **Args = unwrap(LLArgs);
+  return wrap(unwrap(B)->CreateCatchPad(
+      unwrap(ParentPad), ArrayRef<Value *>(Args, ArgCount), Name));
+#else
+  return nullptr;
+#endif
+}
+
+LLVMValueRef LLVMExtBuildCatchRet(LLVMBuilderRef B,
+                                  LLVMValueRef Pad,
+                                  LLVMBasicBlockRef BB) {
+#if LLVM_VERSION_GE(3, 8)
+  return wrap(unwrap(B)->CreateCatchRet(cast<CatchPadInst>(unwrap(Pad)),
+                                              unwrap(BB)));
+#else
+  return nullptr;
+#endif
+}
+
+LLVMValueRef LLVMExtBuildCatchSwitch(LLVMBuilderRef B,
+                                     LLVMValueRef ParentPad,
+                                     LLVMBasicBlockRef BB,
+                                     unsigned NumHandlers,
+                                     const char *Name) {
+#if LLVM_VERSION_GE(3, 8)
+  if (ParentPad == nullptr) {
+    Type *Ty = Type::getTokenTy(unwrap(B)->getContext());
+    ParentPad = wrap(Constant::getNullValue(Ty));
+  }
+  return wrap(unwrap(B)->CreateCatchSwitch(unwrap(ParentPad), unwrap(BB),
+                                                 NumHandlers, Name));
+#else
+  return nullptr;
+#endif
+}
+
+void LLVMExtAddHandler(LLVMValueRef CatchSwitchRef,
+                       LLVMBasicBlockRef Handler) {
+#if LLVM_VERSION_GE(3, 8)
+  Value *CatchSwitch = unwrap(CatchSwitchRef);
+  cast<CatchSwitchInst>(CatchSwitch)->addHandler(unwrap(Handler));
+#endif
+}
+
 }
