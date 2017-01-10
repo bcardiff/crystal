@@ -103,11 +103,6 @@ class Crystal::CodeGenVisitor
         sub_image_base(catchable_void_ptr)
       ]
 
-      catch_pad = builder.catch_pad cs, [void_ptr_type_descriptor, int32(0), alloca(LLVM::VoidPointer)]
-      caught = new_block "caught"
-      builder.build_catch_ret catch_pad, caught
-      position_at_end caught
-
       if node_rescues
         # if node_ensure
         #   rescue_ensure_block = new_block "rescue_ensure"
@@ -123,6 +118,11 @@ class Crystal::CodeGenVisitor
         # end
 
         a_rescue = node_rescues[0]
+        var = context.vars[a_rescue.name]
+        catch_pad = builder.catch_pad cs, [void_ptr_type_descriptor, int32(0), var.pointer]
+        caught = new_block "caught"
+        builder.build_catch_ret catch_pad, caught
+        position_at_end caught
         accept a_rescue.body
         phi.add @last, a_rescue.body.type?
       end
