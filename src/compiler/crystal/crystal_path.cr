@@ -30,6 +30,8 @@ module Crystal
                  {triple[0], triple[1], "freebsd"}.join('-')
                elsif triple.any?(&.includes?("openbsd"))
                  {triple[0], triple[1], "openbsd"}.join('-')
+               elsif triple.any?(&.includes?("windows"))
+                 "x86_64-windows-gnu"
                else
                  triple.join('-')
                end

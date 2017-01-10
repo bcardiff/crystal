@@ -4,6 +4,139 @@ class Crystal::CodeGenVisitor
   @node_ensure_exception_handlers = {} of UInt64 => Handler
 
   def visit(node : ExceptionHandler)
+    if @program.has_flag?("windows")
+      windows_runtime_exception_handling(node)
+    else
+      landing_pad(node)
+    end
+  end
+
+  private def windows_runtime_exception_handling(node : ExceptionHandler)
+    # http://llvm.org/docs/ExceptionHandling.html#overview
+    rescue_block = new_block "rescue"
+
+    node_rescues = node.rescues
+    node_ensure = node.ensure
+    node_else = node.else
+    rescue_ensure_block = nil
+
+    Phi.open(self, node, @needs_value) do |phi|
+      phi.force_exit_block = !!node_ensure
+
+      # 1)
+      old_rescue_block = @rescue_block
+      @rescue_block = rescue_block
+      accept node.body
+      @rescue_block = old_rescue_block
+
+      #   # 2)
+      #   # If there's an else, we take the value from it.
+      #   # Otherwise, the value is taken from the body.
+      if node_else
+        accept node_else
+        phi.add @last, node_else.type?
+      else
+        phi.add @last, node.body.type?
+      end
+
+      position_at_end rescue_block
+
+      #   # lp_ret_type = llvm_typer.landing_pad_type
+      #   # lp = builder.landing_pad lp_ret_type, main_fun(self.personality_name), [] of LLVM::Value
+      #   # unwind_ex_obj = extract_value lp, 0
+      #   # ex_type_id = extract_value lp, 1
+
+      catch_body = new_block "catch.body"
+      cs = builder.catch_switch(nil, nil, 1)
+      builder.add_handler cs, catch_body
+      position_at_end catch_body
+
+      image_base = external_constant(LLVM::Int8, "__ImageBase")
+      base_type_descriptor = external_constant(LLVM::VoidPointer, "\u{1}??_7type_info@@6B@")
+      
+      # .PEAX is void*
+      void_ptr_type_descriptor = @llvm_mod.globals.add(
+            LLVM::Type.struct([
+              LLVM::VoidPointer.pointer,
+              LLVM::VoidPointer,
+              LLVM::Int8.array(6)
+            ]), "\u{1}??_R0PEAX@8")
+      void_ptr_type_descriptor.initializer = LLVM.struct [
+        base_type_descriptor, 
+        LLVM::VoidPointer.null, 
+        LLVM.string(".PEAX"),
+      ]
+            
+      catchable_type = LLVM::Type.struct([LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32])
+      void_ptr_catchable_type = @llvm_mod.globals.add(
+        catchable_type, "_CT??_R0PEAX@88")
+      void_ptr_catchable_type.initializer = LLVM.struct [
+        int32(1),
+        sub_image_base(void_ptr_type_descriptor),
+        int32(0),
+        int32(-1),
+        int32(0),
+        int32(8),
+        int32(0),
+        ]
+
+      catchable_type_array = LLVM::Type.struct([LLVM::Int32, LLVM::Int32.array(1)])
+      catchable_void_ptr = @llvm_mod.globals.add(
+        catchable_type_array, "_CTA1PEAX")
+      catchable_void_ptr.initializer = LLVM.struct [
+        int32(1),
+        LLVM.array(LLVM::Int32, [sub_image_base(void_ptr_catchable_type)])
+      ]
+
+      eh_throwinfo = LLVM::Type.struct([
+        LLVM::Int32,
+        LLVM::Int32,
+        LLVM::Int32,
+        LLVM::Int32,
+      ])
+      void_ptr_throwinfo = @llvm_mod.globals.add(
+        eh_throwinfo, "_TI1PEAX")
+      void_ptr_throwinfo.initializer = LLVM.struct [
+        int32(0),
+        int32(0),
+        int32(0),
+        sub_image_base(catchable_void_ptr)
+      ]
+
+      catch_pad = builder.catch_pad cs, [void_ptr_type_descriptor, int32(0), alloca(LLVM::VoidPointer)]
+      caught = new_block "caught"
+      builder.build_catch_ret catch_pad, caught
+      position_at_end caught
+
+      if node_rescues
+        # if node_ensure
+        #   rescue_ensure_block = new_block "rescue_ensure"
+        # end
+
+        # 3)
+        # Make sure the rescue knows about the current ensure
+        # and the previous catch block
+        old_rescue_block = @rescue_block
+        @rescue_block = rescue_ensure_block || @rescue_block
+
+        # node_rescues.each do |a_rescue|
+        # end
+
+        a_rescue = node_rescues[0]
+        accept a_rescue.body
+        phi.add @last, a_rescue.body.type?
+      end
+    end
+
+    old_last = @last
+    builder_end = @builder.end
+
+    @last = old_last
+
+    false
+  end
+
+  private def landing_pad(node : ExceptionHandler)
     rescue_block = new_block "rescue"
 
     node_rescues = node.rescues
@@ -214,5 +347,23 @@ class Crystal::CodeGenVisitor
     if eh = @ensure_exception_handlers.try &.last?
       @node_ensure_exception_handlers[node.object_id] = eh
     end
+  end
+
+  def external_constant(type, name)
+    @llvm_mod.globals[name]? || begin
+      c = @llvm_mod.globals.add(type, name)
+      c.global_constant = true
+      c
+    end    
+  end
+
+  def sub_image_base(value)
+    image_base = external_constant(LLVM::Int8, "__ImageBase")
+
+    @builder.trunc(
+      @builder.sub(
+        @builder.ptr2int(value, LLVM::Int64),
+        @builder.ptr2int(image_base, LLVM::Int64))
+      , LLVM::Int32)
   end
 end

@@ -2233,6 +2233,8 @@ module Crystal
         node.type = typed_def.args.first.type.as(PointerInstanceType).element_type
       when "store_atomic"
         node.type = program.nil_type
+      when "throw_info"
+        node.type = program.pointer_of(program.void)
       else
         node.raise "BUG: unhandled primitive in MainVisitor: #{node.name}"
       end
