@@ -12,6 +12,8 @@ class Crystal::CodeGenVisitor
   end
 
   private def windows_runtime_exception_handling(node : ExceptionHandler)
+    context.fun.personality_function = @llvm_mod.functions[@personality_name]
+
     # http://llvm.org/docs/ExceptionHandling.html#overview
     rescue_block = new_block "rescue"
 
