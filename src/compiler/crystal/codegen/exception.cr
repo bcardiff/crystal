@@ -53,26 +53,26 @@ class Crystal::CodeGenVisitor
       builder.add_handler cs, catch_body
       position_at_end catch_body
 
-      image_base = external_constant(LLVM::Int8, "__ImageBase")
-      base_type_descriptor = external_constant(LLVM::VoidPointer, "\u{1}??_7type_info@@6B@")
-      
+      image_base = external_constant(llvm_context.int8, "__ImageBase")
+      base_type_descriptor = external_constant(llvm_context.void_pointer, "\u{1}??_7type_info@@6B@")
+
       # .PEAX is void*
       void_ptr_type_descriptor = @llvm_mod.globals.add(
-            LLVM::Type.struct([
-              LLVM::VoidPointer.pointer,
-              LLVM::VoidPointer,
-              LLVM::Int8.array(6)
+            llvm_context.struct([
+              llvm_context.void_pointer.pointer,
+              llvm_context.void_pointer,
+              llvm_context.int8.array(6)
             ]), "\u{1}??_R0PEAX@8")
-      void_ptr_type_descriptor.initializer = LLVM.struct [
-        base_type_descriptor, 
-        LLVM::VoidPointer.null, 
-        LLVM.string(".PEAX"),
+      void_ptr_type_descriptor.initializer = llvm_context.const_struct [
+        base_type_descriptor,
+        llvm_context.void_pointer.null,
+        llvm_context.const_string(".PEAX"),
       ]
-            
-      catchable_type = LLVM::Type.struct([LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32, LLVM::Int32])
+
+      catchable_type = llvm_context.struct([llvm_context.int32, llvm_context.int32, llvm_context.int32, llvm_context.int32, llvm_context.int32, llvm_context.int32, llvm_context.int32])
       void_ptr_catchable_type = @llvm_mod.globals.add(
         catchable_type, "_CT??_R0PEAX@88")
-      void_ptr_catchable_type.initializer = LLVM.struct [
+      void_ptr_catchable_type.initializer = llvm_context.const_struct [
         int32(1),
         sub_image_base(void_ptr_type_descriptor),
         int32(0),
@@ -82,23 +82,18 @@ class Crystal::CodeGenVisitor
         int32(0),
         ]
 
-      catchable_type_array = LLVM::Type.struct([LLVM::Int32, LLVM::Int32.array(1)])
+      catchable_type_array = llvm_context.struct([llvm_context.int32, llvm_context.int32.array(1)])
       catchable_void_ptr = @llvm_mod.globals.add(
         catchable_type_array, "_CTA1PEAX")
-      catchable_void_ptr.initializer = LLVM.struct [
+      catchable_void_ptr.initializer = llvm_context.const_struct [
         int32(1),
-        LLVM.array(LLVM::Int32, [sub_image_base(void_ptr_catchable_type)])
+        llvm_context.int32.const_array([sub_image_base(void_ptr_catchable_type)])
       ]
 
-      eh_throwinfo = LLVM::Type.struct([
-        LLVM::Int32,
-        LLVM::Int32,
-        LLVM::Int32,
-        LLVM::Int32,
-      ])
+      eh_throwinfo = llvm_context.struct([llvm_context.int32, llvm_context.int32, llvm_context.int32, llvm_context.int32, ])
       void_ptr_throwinfo = @llvm_mod.globals.add(
         eh_throwinfo, "_TI1PEAX")
-      void_ptr_throwinfo.initializer = LLVM.struct [
+      void_ptr_throwinfo.initializer = llvm_context.const_struct [
         int32(0),
         int32(0),
         int32(0),
@@ -356,16 +351,16 @@ class Crystal::CodeGenVisitor
       c = @llvm_mod.globals.add(type, name)
       c.global_constant = true
       c
-    end    
+    end
   end
 
   def sub_image_base(value)
-    image_base = external_constant(LLVM::Int8, "__ImageBase")
+    image_base = external_constant(llvm_context.int8, "__ImageBase")
 
     @builder.trunc(
       @builder.sub(
-        @builder.ptr2int(value, LLVM::Int64),
-        @builder.ptr2int(image_base, LLVM::Int64))
-      , LLVM::Int32)
+        @builder.ptr2int(value, llvm_context.int64),
+        @builder.ptr2int(image_base, llvm_context.int64))
+      , llvm_context.int32)
   end
 end

@@ -161,7 +161,7 @@ module Crystal
                           end
 
       if @program.has_flag?("windows")
-        @main.personality_function = @llvm_mod.functions.add(@personality_name, ([] of LLVM::Type), LLVM::Int32, true)
+        @main.personality_function = @llvm_mod.functions.add(@personality_name, ([] of LLVM::Type), llvm_context.int32, true)
       end
 
       emit_main_def_debug_metadata(@main, "??") unless @debug.none?
