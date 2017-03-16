@@ -149,4 +149,58 @@ describe "Semantic: SimpleRescues" do
       CR
     )
   end
+
+  it "translate ensure with a wrapping rescue" do
+    assert_transform(
+      <<-CR
+      begin
+        lorem
+      rescue
+        foo
+      else
+        bar
+      ensure
+        qux
+      end
+      CR
+    ,
+      <<-CR
+      begin
+        begin
+          lorem
+        rescue ___e2
+          foo
+        else
+          bar
+        end
+      rescue ___e1
+        qux
+        ::raise(___e1)
+      end
+      qux
+      CR
+    )
+  end
+
+  it "translate ensure without rescue with a simlre rescue" do
+    assert_transform(
+      <<-CR
+      begin
+        lorem
+      ensure
+        qux
+      end
+      CR
+    ,
+      <<-CR
+      begin
+        lorem
+      rescue ___e1
+        qux
+        ::raise(___e1)
+      end
+      qux
+      CR
+    )
+  end
 end

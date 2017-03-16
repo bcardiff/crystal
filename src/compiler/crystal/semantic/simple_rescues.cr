@@ -7,7 +7,34 @@ module Crystal
     @i = 0
 
     def transform(node : ExceptionHandler)
+      ensure_body = node.ensure
       rescues = node.rescues
+
+      if ensure_body
+        # if there is an ensure wrap it in another begin/rescue
+        # add the original ensure at the end of the outer rescue and
+        # also following the outer rescue
+        node.ensure = nil
+        var_name = next_var
+
+        ensure_body = ensure_body.transform(self)
+
+        body = if rescues || node.else
+                 node
+               else
+                 node.body
+               end
+
+        return Expressions.from [
+          ExceptionHandler.new(
+            body.transform(self),
+            [Rescue.new(Expressions.from([
+              ensure_body,
+              Call.global("raise", Var.new(var_name)),
+            ] of ASTNode), nil, var_name)]),
+          ensure_body.clone,
+        ] of ASTNode
+      end
 
       if rescues
         if rescues.size > 1
