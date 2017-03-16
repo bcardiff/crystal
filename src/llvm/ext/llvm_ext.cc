@@ -546,4 +546,43 @@ void LLVMExtAddHandler(LLVMValueRef CatchSwitchRef,
 #endif
 }
 
+OperandBundleDef *LLVMExtBuildOperandBundleDef(const char *Name,
+                                                           LLVMValueRef *Inputs,
+                                                           unsigned NumInputs) {
+#if LLVM_VERSION_GE(3, 8)
+  return new OperandBundleDef(Name, makeArrayRef(unwrap(Inputs), NumInputs));
+#else
+  return nullptr;
+#endif
+}
+
+LLVMValueRef LLVMExtBuildCall(LLVMBuilderRef B, LLVMValueRef Fn,
+                                          LLVMValueRef *Args, unsigned NumArgs,
+                                          OperandBundleDef *Bundle,
+                                          const char *Name) {
+#if LLVM_VERSION_GE(3, 8)
+  unsigned Len = Bundle ? 1 : 0;
+  ArrayRef<OperandBundleDef> Bundles = makeArrayRef(Bundle, Len);
+  return wrap(unwrap(B)->CreateCall(
+      unwrap(Fn), makeArrayRef(unwrap(Args), NumArgs), Bundles, Name));
+#else
+  return LLVMBuildCall(B, Fn, Args, NumArgs, Name);
+#endif
+}
+
+LLVMValueRef LLVMExtBuildInvoke(LLVMBuilderRef B, LLVMValueRef Fn, LLVMValueRef *Args,
+                    unsigned NumArgs, LLVMBasicBlockRef Then,
+                    LLVMBasicBlockRef Catch, OperandBundleDef *Bundle,
+                    const char *Name) {
+#if LLVM_VERSION_GE(3, 8)
+  unsigned Len = Bundle ? 1 : 0;
+  ArrayRef<OperandBundleDef> Bundles = makeArrayRef(Bundle, Len);
+  return wrap(unwrap(B)->CreateInvoke(unwrap(Fn), unwrap(Then), unwrap(Catch),
+                                      makeArrayRef(unwrap(Args), NumArgs),
+                                      Bundles, Name));
+#else
+  return LLVMBuildInvoke(B, Fn, Args, NumArgs, Then, Catch, Name);
+#endif
+}
+
 }

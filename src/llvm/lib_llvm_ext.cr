@@ -8,6 +8,7 @@ lib LibLLVMExt
 
   type DIBuilder = Void*
   type Metadata = Void*
+  type OperandBundleDefRef = Void*
 
   fun create_di_builder = LLVMNewDIBuilder(LibLLVM::ModuleRef) : DIBuilder
   fun di_builder_finalize = LLVMDIBuilderFinalize(DIBuilder)
@@ -130,4 +131,19 @@ lib LibLLVMExt
     fun add_handler = LLVMExtAddHandler(catch_switch_ref : LibLLVM::ValueRef,
                                         handler : LibLLVM::BasicBlockRef) : Void
   {% end %}
+
+  fun build_operand_bundle_def = LLVMExtBuildOperandBundleDef(name : LibC::Char*,
+                                                              input : LibLLVM::ValueRef*,
+                                                              num_input : LibC::UInt) : LibLLVMExt::OperandBundleDefRef
+
+  fun build_call = LLVMExtBuildCall(builder : LibLLVM::BuilderRef, fn : LibLLVM::ValueRef,
+                                    args : LibLLVM::ValueRef*, arg_count : LibC::UInt,
+                                    bundle : LibLLVMExt::OperandBundleDefRef,
+                                    name : LibC::Char*) : LibLLVM::ValueRef
+
+  fun build_invoke = LLVMExtBuildInvoke(builder : LibLLVM::BuilderRef, fn : LibLLVM::ValueRef,
+                                        args : LibLLVM::ValueRef*, arg_count : LibC::UInt,
+                                        then : LibLLVM::BasicBlockRef, catch : LibLLVM::BasicBlockRef,
+                                        bundle : LibLLVMExt::OperandBundleDefRef,
+                                        name : LibC::Char*) : LibLLVM::ValueRef
 end
