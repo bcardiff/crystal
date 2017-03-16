@@ -203,4 +203,60 @@ describe "Semantic: SimpleRescues" do
       CR
     )
   end
+
+  it "ensures nested transforms in body" do
+    assert_transform(
+      <<-CR
+      begin
+        begin
+          a = 1
+        rescue
+          a = 2
+        end
+      rescue
+        a = 3
+      end
+      CR
+    ,
+      <<-CR
+      begin
+        begin
+          a = 1
+        rescue ___e2
+          a = 2
+        end
+      rescue ___e1
+        a = 3
+      end
+      CR
+    )
+  end
+
+  it "ensures nested transforms in rescue" do
+    assert_transform(
+      <<-CR
+      begin
+        a = 0
+      rescue
+        begin
+          a = 1
+        rescue
+          a = 2
+        end
+      end
+      CR
+    ,
+      <<-CR
+      begin
+        a = 0
+      rescue ___e1
+        begin
+          a = 1
+        rescue ___e2
+          a = 2
+        end
+      end
+      CR
+    )
+  end
 end

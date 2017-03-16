@@ -43,14 +43,15 @@ module Crystal
 
           rescues.reverse_each do |rescue_node|
             typed_var_name, restriction_type, body = split_rescue rescue_node
+
             if restriction_type
               rescue_body = type_restricted_rescue_body(var_name,
-                typed_var_name, restriction_type, body.transform(self), rescue_body)
+                typed_var_name, restriction_type, body, rescue_body)
             else
               rescue_body = Expressions.from [
                 Assign.new(Var.new(typed_var_name), Var.new(var_name)),
                 body,
-              ]
+              ] of ASTNode
             end
           end
         else
@@ -65,7 +66,8 @@ module Crystal
           end
         end
 
-        node.rescues = [Rescue.new(rescue_body, nil, var_name)]
+        node.body = node.body.transform(self)
+        node.rescues = [Rescue.new(rescue_body.transform(self), nil, var_name)]
       end
 
       node
