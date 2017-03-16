@@ -129,6 +129,7 @@ module Crystal
     @argv : LLVM::Value
     @empty_md_list : LLVM::Value
     @rescue_block : LLVM::BasicBlock?
+    @catch_pad : LLVM::Value?
     @malloc_fun : LLVM::Function?
     @sret_value : LLVM::Value?
     @cant_pass_closure_to_c_exception_call : Call?

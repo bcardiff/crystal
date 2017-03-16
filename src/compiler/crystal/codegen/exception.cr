@@ -49,7 +49,7 @@ class Crystal::CodeGenVisitor
       #   # ex_type_id = extract_value lp, 1
 
       catch_body = new_block "catch.body"
-      cs = builder.catch_switch(nil, nil, 1)
+      cs = builder.catch_switch(nil, old_rescue_block || LLVM::BasicBlock.null, 1)
       builder.add_handler cs, catch_body
       position_at_end catch_body
 
@@ -116,11 +116,15 @@ class Crystal::CodeGenVisitor
 
         a_rescue = node_rescues[0]
         var = context.vars[a_rescue.name]
-        catch_pad = builder.catch_pad cs, [void_ptr_type_descriptor, int32(0), var.pointer]
+        old_catch_pad = @catch_pad
+        @catch_pad = catch_pad = builder.catch_pad cs, [void_ptr_type_descriptor, int32(0), var.pointer]
         caught = new_block "caught"
-        builder.build_catch_ret catch_pad, caught
-        position_at_end caught
         accept a_rescue.body
+        builder.build_catch_ret catch_pad, caught
+        @catch_pad = old_catch_pad
+
+        position_at_end caught
+
         phi.add @last, a_rescue.body.type?
       end
     end
