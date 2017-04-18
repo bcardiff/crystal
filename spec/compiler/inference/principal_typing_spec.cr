@@ -102,6 +102,13 @@ describe "principal typing" do
     end
   end
 
+  it "expressions are iterated" do
+    assert_inference(%(a = 1; b = 'c')) do |h, context, _|
+      assert_can_store(context["a"], int32)
+      assert_can_store(context["b"], char)
+    end
+  end
+
   it "a top level def call creates a TopLevelMethodConstraint" do
     assert_inference(%(a = method(1))) do |h, context, constraints|
       method = constraints.first
@@ -109,6 +116,32 @@ describe "principal typing" do
       method.name.should eq("method")
       method.type.arg_types.should eq([int32])
       assert_can_store(context["a"], method.type.return_type)
+    end
+  end
+
+  it "same method overloads constraints are reused" do
+    assert_inference(%(a = method(m2, m2))) do |h, context, constraints|
+      constraints.size.should eq(2)
+      m2 = constraints.select(&.name.==("m2")).first
+      m2.should be_a(Inference::TopLevelMethodConstraint)
+
+      method = constraints.select(&.name.==("method")).first
+      method.should be_a(Inference::TopLevelMethodConstraint)
+      method.type.arg_types.should eq([m2.type.return_type, m2.type.return_type])
+
+      assert_can_store(context["a"], method.type.return_type)
+    end
+  end
+
+  it "different method overloads creates different TopLevelMethodConstraint" do
+    assert_inference(%(method(1); method('c'))) do |h, context, constraints|
+      constraints.size.should eq(2)
+
+      m_int = constraints[0]
+      m_int.type.arg_types.should eq([int32])
+
+      m_char = constraints[1]
+      m_char.type.arg_types.should eq([char])
     end
   end
 end

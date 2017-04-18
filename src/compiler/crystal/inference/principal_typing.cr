@@ -59,7 +59,9 @@ module Crystal
         @last = INamedType.from(program.symbol)
       end
 
-      # variables
+      def visit(node : Expressions)
+        super
+      end
 
       def visit(node : Assign)
         target = node.target
@@ -90,19 +92,19 @@ module Crystal
         not_implemented("for Call with named_args") if node.named_args
 
         if node.args.size > 0
-          args_types = [] of IType
+          arg_types = [] of IType
           node.args.each do |arg|
             arg.accept(self)
             # TODO mgu over args
-            args_types << self.last
+            arg_types << self.last
           end
         else
-          args_types = nil
+          arg_types = nil
         end
 
-        @last = return_type = fresh_type
-
-        @constraints << TopLevelMethodConstraint.new(node.name, IFunctionType.new(args_types, return_type))
+        # if there is already a method restriction with the same argument, reuse it
+        # and get the return type from it
+        @last, _ = build_or_get_method_for_args(node.name, arg_types)
 
         false
       end
@@ -116,6 +118,22 @@ module Crystal
       private def fresh_type
         @next_var += 1u64
         ITypeVariable.new(@next_var)
+      end
+
+      private def build_or_get_method_for_args(name, arg_types)
+        existing = @constraints.select { |c|
+          c.is_a?(TopLevelMethodConstraint) &&
+            c.name == name && c.type.arg_types == arg_types
+        }.first?
+
+        if existing
+          {existing.type.return_type, existing}
+        else
+          return_type = fresh_type
+          constraint = TopLevelMethodConstraint.new(name, IFunctionType.new(arg_types, return_type))
+          @constraints << constraint
+          {return_type, constraint}
+        end
       end
     end
   end
