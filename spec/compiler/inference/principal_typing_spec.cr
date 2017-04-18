@@ -109,6 +109,13 @@ describe "principal typing" do
     end
   end
 
+  it "variables can hold all the required values" do
+    assert_inference(%(a = 1; a = 'c')) do |h, context, _|
+      assert_can_store(context["a"], int32)
+      assert_can_store(context["a"], char)
+    end
+  end
+
   it "a top level def call creates a TopLevelMethodConstraint" do
     assert_inference(%(a = method(1))) do |h, context, constraints|
       method = constraints.first

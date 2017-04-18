@@ -69,14 +69,27 @@ module Crystal
           node.value.accept(self)
           value_type = self.last
 
-          # if the variable is already in the context we must unify with the current type
-          # if not we create a new type flexible enough to grow, by been a IUnion(@last, fresh_type).
-          # So further unification can use that fresh_type to keep growing.
-
+          # if the variable is already in the context we must comply with the current type
+          # if not we create a new type flexible enough to grow, by been a IUnion(@last, can_grow: true).
+          # TODO: NB that every time a new scope is created the variable context should be inferred, unless fixed
           t = if current_type = @context[target.name]?
-                not_implemented
+                case current_type
+                when IUnion
+                  if current_type.types.none?(&.==(value_type))
+                    if current_type.can_grow?
+                      current_type.types << value_type
+                    else
+                      raise "Compiler error"
+                    end
+                  else
+                    # value_type can be stored. nothing to be done
+                  end
+                  current_type # TODO CHECK should the assignment return the value_type rather than the variable type?
+                else
+                  not_implemented
+                end
               else
-                IUnion.new(value_type, fresh_type)
+                IUnion.new(value_type, can_grow: true)
               end
           @context[target.name] = @last = t
         else

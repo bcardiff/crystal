@@ -25,13 +25,14 @@ module Crystal::Inference
 
   class IUnion
     getter types : Array(IType)
+    getter? can_grow : Bool
 
-    def initialize(*types : IType)
+    def initialize(*types : IType, @can_grow : Bool)
       @types = types.to_a
     end
 
     def to_s(io : IO)
-      io << "Union("
+      io << "Union#{@can_grow ? "+" : ""}("
       @types.each_with_index do |t, index|
         io << ", " if index > 0
         t.to_s(io)
