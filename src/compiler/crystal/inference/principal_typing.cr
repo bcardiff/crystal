@@ -10,11 +10,13 @@ module Crystal
     def infer_types(node : ASTNode)
       visitor = Inference::TypeInferenceVisitor.new(self)
       node.accept(visitor)
-      {visitor.last, visitor.context, visitor.constraints}
+      {visitor.last, visitor.context, visitor.constraints, visitor.idefs}
     end
   end
 
   module Inference
+    record IDef, def : Def, type : IFunctionType, constraints : Array(Constraint)
+
     class TypeInferenceVisitor < SemanticVisitor
       class NotImplemented < ::Exception
         def initialize(@message)
@@ -24,6 +26,7 @@ module Crystal
       getter! last : IType
       getter context = Hash(String, IType).new
       getter constraints = Array(Constraint).new
+      getter idefs = Array(IDef).new
 
       def visit(node)
         not_implemented("for #{node.class}")
@@ -61,6 +64,24 @@ module Crystal
 
       def visit(node : Expressions)
         super
+      end
+
+      def visit(node : Def)
+        old_context = @context
+        old_constraints = @constraints
+
+        @context = Hash(String, IType).new
+        @constraints = Array(Constraint).new
+
+        # TODO type args
+        # TODO use return type annotation
+        node.body.accept(self)
+        # TODO keep context
+        @idefs << IDef.new(node, IFunctionType.new(nil, self.last), @constraints)
+
+        @last = nil
+        @context = old_context
+        @constraints = old_constraints
       end
 
       def visit(node : Assign)
