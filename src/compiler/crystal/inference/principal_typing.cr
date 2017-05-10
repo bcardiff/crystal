@@ -3,13 +3,14 @@ require "../syntax/ast"
 require "../syntax/visitor"
 require "../semantic/semantic_visitor"
 require "./itype"
+require "./constraint"
 
 module Crystal
   class Program
     def infer_types(node : ASTNode)
       visitor = Inference::TypeInferenceVisitor.new(self)
       node.accept(visitor)
-      {visitor.last, visitor.context}
+      {visitor.last, visitor.context, visitor.constraints}
     end
   end
 
@@ -22,6 +23,7 @@ module Crystal
 
       getter! last : IType
       getter context = Hash(String, IType).new
+      getter constraints = Array(Constraint).new
 
       def visit(node)
         not_implemented("for #{node.class}")
@@ -82,9 +84,28 @@ module Crystal
         false
       end
 
-      # def visit(node : Call)
-      #   pp node
-      # end
+      def visit(node : Call)
+        not_implemented("for Call with receivers") if node.obj
+        not_implemented("for Call with block") if node.block
+        not_implemented("for Call with named_args") if node.named_args
+
+        if node.args.size > 0
+          args_types = [] of IType
+          node.args.each do |arg|
+            arg.accept(self)
+            # TODO mgu over args
+            args_types << self.last
+          end
+        else
+          args_types = nil
+        end
+
+        @last = return_type = fresh_type
+
+        @constraints << TopLevelMethodConstraint.new(node.name, IFunctionType.new(args_types, return_type))
+
+        false
+      end
 
       private def not_implemented(message = "")
         raise NotImplemented.new("Type inference not implemented #{message}")
