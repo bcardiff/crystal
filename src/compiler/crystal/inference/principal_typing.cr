@@ -73,15 +73,35 @@ module Crystal
         @context = Hash(String, IType).new
         @constraints = Array(Constraint).new
 
-        # TODO type args
+        not_implemented("free_vars") if node.free_vars
+        not_implemented("receiver") if node.receiver
+        not_implemented("double_splat") if node.double_splat
+        not_implemented("block_arg") if node.block_arg
+        not_implemented("yields") if node.yields
+        not_implemented("splat_index") if node.splat_index
+
+        # TODO IFunctionType need to know about names / external names, splats and blocks
+        arg_types = nil
+        node.args.each do |arg|
+          not_implemented("args with default_value") if arg.default_value
+          not_implemented("args with restriction") if arg.restriction
+
+          arg_types ||= Array(IType).new(node.args.size)
+          arg_type = fresh_type
+          @context[arg.name] = arg_type
+          arg_types << arg_type
+        end
+
         # TODO use return type annotation
         node.body.accept(self)
         # TODO keep context
-        @idefs << IDef.new(node, IFunctionType.new(nil, self.last), @constraints)
+        @idefs << IDef.new(node, IFunctionType.new(arg_types, self.last), @constraints)
 
-        @last = nil
+        @last = INamedType.from(program.nil)
         @context = old_context
         @constraints = old_constraints
+
+        false
       end
 
       def visit(node : Assign)
@@ -141,6 +161,10 @@ module Crystal
         @last, _ = build_or_get_method_for_args(node.name, arg_types)
 
         false
+      end
+
+      def visit(node : Var)
+        @last = @context[node.name]
       end
 
       private def not_implemented(message = "")

@@ -191,4 +191,17 @@ describe "principal typing" do
       d_foo.type.return_type.should_not eq(d_bar.type.return_type)
     end
   end
+
+  it "assigns type variable to arguments" do
+    assert_inference(%(
+    def foo(a)
+      a
+    end
+    )) do |h, context, constraints, idefs|
+      d_foo = idefs[0]
+      arg_types = d_foo.type.arg_types.not_nil!
+      d_foo.type.return_type.should eq(arg_types[0])
+      d_foo.type.return_type.should be_a(Inference::ITypeVariable)
+    end
+  end
 end
