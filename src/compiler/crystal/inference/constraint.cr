@@ -10,5 +10,9 @@ module Crystal::Inference
 
     def initialize(@name : String, @type : IFunctionType)
     end
+
+    def to_s(io : IO)
+      io << "#{name} : #{type}"
+    end
   end
 end

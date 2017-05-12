@@ -15,7 +15,15 @@ module Crystal
   end
 
   module Inference
-    record IDef, def : Def, type : IFunctionType, constraints : Array(Constraint)
+    record IDef, def : Def, type : IFunctionType, constraints : Array(Constraint) do
+      def to_s(io : IO)
+        io << "#{self.def.name} : #{type}\n"
+        io << "  where\n" unless constraints.empty?
+        constraints.each do |c|
+          io << "  - #{c}\n"
+        end
+      end
+    end
 
     class TypeInferenceVisitor < SemanticVisitor
       class NotImplemented < ::Exception
