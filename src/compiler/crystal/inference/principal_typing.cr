@@ -179,11 +179,8 @@ module Crystal
         raise NotImplemented.new("Type inference not implemented #{message}")
       end
 
-      @next_var = 0u64
-
       private def fresh_type
-        @next_var += 1u64
-        ITypeVariable.new(@next_var)
+        ITypeVariable.fresh
       end
 
       private def build_or_get_method_for_args(name, arg_types)

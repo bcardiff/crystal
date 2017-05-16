@@ -24,6 +24,12 @@ def assert_inference(str)
   expected_context = with helper yield helper, context, constraints, idefs
 end
 
+private def assert_match(idef : Inference::IDef, expected_type : Inference::IFunctionType)
+  subst = Inference.mgu(idef.type, expected_type)
+  return if subst
+  fail("mgu(#{idef.type}, #{expected_type}) failed")
+end
+
 def assert_can_store(inferred_type, expected_type)
   raise "not implemented" unless expected_type.is_a?(Inference::INamedType) || expected_type.is_a?(Inference::ITypeVariable)
 
@@ -199,9 +205,9 @@ describe "principal typing" do
     end
     )) do |h, context, constraints, idefs|
       d_foo = idefs[0]
-      arg_types = d_foo.type.arg_types.not_nil!
-      d_foo.type.return_type.should eq(arg_types[0])
-      d_foo.type.return_type.should be_a(Inference::ITypeVariable)
+
+      t = Inference::ITypeVariable.fresh.as(Inference::IType)
+      assert_match(d_foo, Inference::IFunctionType.new([t], t))
     end
   end
 end

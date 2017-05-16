@@ -9,11 +9,12 @@ private class Types
     Inference::INamedType.new("::Bar")
   end
 
-  @@next_var = 0u64
-
   def self.fresh
-    @@next_var += 1u64
-    Inference::ITypeVariable.new(@@next_var)
+    Inference::ITypeVariable.fresh
+  end
+
+  def self.func(arg : Inference::IType, ret)
+    Inference::IFunctionType.new([arg] of Inference::IType, ret)
   end
 end
 
@@ -40,5 +41,25 @@ describe "mgu" do
   it "returns simple substitution between ITypeVariable" do
     s = Inference.mgu(t1 = Types.fresh, t2 = Types.fresh).not_nil!
     s.substs.should eq({t2 => t1})
+  end
+
+  it "returns simple substitution between IFunctionType and ITypeVariable" do
+    s = Inference.mgu(f1 = Types.func(Types.foo, Types.bar), t1 = Types.fresh).not_nil!
+    s.substs.should eq({t1 => f1})
+  end
+
+  it "returns simple substitution between ITypeVariable and IFunctionType" do
+    s = Inference.mgu(t1 = Types.fresh, f1 = Types.func(Types.foo, Types.bar)).not_nil!
+    s.substs.should eq({t1 => f1})
+  end
+
+  it "deconstruct IFunctionType and match inner arguments" do
+    s = Inference.mgu(Types.func(Types.foo, Types.bar), Types.func(Types.foo, Types.bar)).not_nil!
+    s.empty?.should be_true
+
+    Inference.mgu(Types.func(Types.foo, Types.bar), Types.func(Types.foo, Types.foo)).should be_nil
+
+    s = Inference.mgu(Types.func(t1 = Types.fresh, Types.bar), Types.func(Types.foo, t2 = Types.fresh)).not_nil!
+    s.substs.should eq({t1 => Types.foo, t2 => Types.bar})
   end
 end

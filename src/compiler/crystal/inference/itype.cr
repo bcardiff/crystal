@@ -46,6 +46,13 @@ module Crystal::Inference
   end
 
   class ITypeVariable
+    @@lastId = 0u64
+
+    def self.fresh
+      @@lastId += 1u64
+      new(@@lastId)
+    end
+
     getter id : UInt64
 
     def initialize(@id)
