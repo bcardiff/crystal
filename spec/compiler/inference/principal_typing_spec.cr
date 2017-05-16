@@ -1,6 +1,6 @@
 require "../../spec_helper"
 
-def type_infered(str)
+def type_inferred(str)
   program = Program.new
   input = parse str
   input = program.normalize input
@@ -11,7 +11,7 @@ def type_infered(str)
 end
 
 def assert_inferred(str)
-  input_type, _, _, _, program = type_infered(str)
+  input_type, _, _, _, program = type_inferred(str)
   helper = TypeHelper.new
   expected_type = with helper yield helper
   input_type.should eq(expected_type)
@@ -19,7 +19,7 @@ def assert_inferred(str)
 end
 
 def assert_inference(str)
-  _, context, constraints, idefs, program = type_infered(str)
+  _, context, constraints, idefs, program = type_inferred(str)
   helper = TypeHelper.new
   expected_context = with helper yield helper, context, constraints, idefs
 end
