@@ -1,6 +1,16 @@
 require "./itype"
 
 module Crystal::Inference
+  class UnificationException < ::Exception
+    def initialize(message)
+      super
+    end
+
+    def initialize(a : IType, b : IType)
+      initialize("Unable to unify #{a} and #{b}")
+    end
+  end
+
   struct Substitution
     getter substs : Hash(ITypeVariable, IType)
 
@@ -19,8 +29,8 @@ module Crystal::Inference
       Substitution.new
     end
 
-    def self.none
-      nil
+    def self.none!(*args)
+      raise UnificationException.new(*args)
     end
 
     def empty?
@@ -88,18 +98,18 @@ module Crystal::Inference
 
     case {a, b}
     when {.is_a?(INamedType), .is_a?(INamedType)}
-      a == b ? mgu(pairs) : Substitution.none
+      a == b ? mgu(pairs) : Substitution.none!(a, b)
     when {_, .is_a?(ITypeVariable)}
       s = Substitution.new(b, a)
-      mgu(s.apply(pairs)).try &.merge!(s)
+      mgu(s.apply(pairs)).merge!(s)
     when {.is_a?(ITypeVariable), _}
       s = Substitution.new(a, b)
-      mgu(s.apply(pairs)).try &.merge!(s)
+      mgu(s.apply(pairs)).merge!(s)
     when {.is_a?(IFunctionType), .is_a?(IFunctionType)}
       a_args = a.arg_types
       b_args = b.arg_types
       if a_args && b_args
-        return Substitution.none if a_args.size != b_args.size
+        Substitution.none!("#{a} and #{b} argument count differs") if a_args.size != b_args.size
 
         a_args.zip(b_args) do |a_arg, b_arg|
           pairs << {a_arg, b_arg}
@@ -108,8 +118,18 @@ module Crystal::Inference
 
         mgu(pairs)
       else
-        Substitution.none if a_args.nil? != b_args.nil?
+        Substitution.none!("#{a} and #{b} argument count differs") if a_args.nil? != b_args.nil?
+        # a_args and b_args are nil
+        raise "unify(#{a}, #{b}) not implemented"
       end
+    else
+      raise "unify(#{a}, #{b}) not implemented"
     end
+  end
+
+  def self.mgu?(*args)
+    mgu(*args)
+  rescue e : UnificationException
+    nil
   end
 end
