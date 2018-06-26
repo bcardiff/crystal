@@ -68,6 +68,18 @@ describe "Code gen: arithmetics primitives" do
           end
         )).to_i.should eq(1)
       end
+
+      it "raises if checked for {{type}} + Int64" do
+        run(%(
+          require "prelude"
+          begin
+            {{type}}::MAX + 1_i64
+            0
+          rescue OverflowError
+            1
+          end
+        )).to_i.should eq(1)
+      end
     {% end %}
   end
 end
