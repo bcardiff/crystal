@@ -191,8 +191,28 @@ class Crystal::CodeGenVisitor
   end
 
   def codegen_binary_op_sub(location, t : IntegerType, t1, t2, p1, p2)
-    result = builder.sub(p1, p2)
-    codegen_trunc_binary_op_result(t1, t2, result)
+    llvm_fun = case t.kind
+               when :i8
+                 binary_overflow_fun "llvm.ssub.with.overflow.i8", llvm_context.int8
+               when :i16
+                 binary_overflow_fun "llvm.ssub.with.overflow.i16", llvm_context.int16
+               when :i32
+                 binary_overflow_fun "llvm.ssub.with.overflow.i32", llvm_context.int32
+               when :i64
+                 binary_overflow_fun "llvm.ssub.with.overflow.i64", llvm_context.int64
+               when :u8
+                 binary_overflow_fun "llvm.usub.with.overflow.i8", llvm_context.int8
+               when :u16
+                 binary_overflow_fun "llvm.usub.with.overflow.i16", llvm_context.int16
+               when :u32
+                 binary_overflow_fun "llvm.usub.with.overflow.i32", llvm_context.int32
+               when :u64
+                 binary_overflow_fun "llvm.usub.with.overflow.i64", llvm_context.int64
+               else
+                 raise "unreachable"
+               end
+
+    codegen_binary_overflow_check(location, llvm_fun, t, t1, t2, p1, p2)
   end
 
   def codegen_binary_op_mul(location, t : IntegerType, t1, t2, p1, p2)
