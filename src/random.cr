@@ -165,7 +165,7 @@ module Random
           # All the computations will (almost) fit into `typeof(next_u)`.
 
           # Relies on integer overflow + wraparound to find the highest number divisible by *max*.
-          limit = typeof(next_u).new(0) - (typeof(next_u).new(0) - max) % max
+          limit = typeof(next_u).new(0) &- (typeof(next_u).new(0) &- max) % max
           # *limit* might be 0, which means it would've been `typeof(next_u)::MAX + 1, but didn't
           # fit into the integer type.
 
@@ -196,12 +196,12 @@ module Random
           limit =
             if rand_max > 0
               # `rand_max` didn't overflow, so we can calculate the *limit* the straightforward way.
-              rand_max / max * max
+              rand_max / max &* max
             else
               # *rand_max* is `{{utype}}::MAX + 1`, need the same wraparound trick. *limit* might
               # overflow, which means it would've been `{{utype}}::MAX + 1`, but didn't fit into
               # the integer type.
-              {{utype}}.new(0) - ({{utype}}.new(0) - max) % max
+              {{utype}}.new(0) &- ({{utype}}.new(0) &- max) % max
             end
 
           loop do
@@ -216,7 +216,7 @@ module Random
       end
 
       private def rand_range(range : Range({{type}}, {{type}})) : {{type}}
-        span = {{utype}}.new(range.end - range.begin)
+        span = {{utype}}.new(range.end &- range.begin)
         if range.excludes_end?
           unless range.begin < range.end
             raise ArgumentError.new "Invalid range for rand: #{range}"
