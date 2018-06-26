@@ -324,7 +324,9 @@ end
         {% for op, desc in binaries %}
           {% if op != "/" %}
             # Returns the result of {{desc.id}} `self` and *other*.
+            # In case of overflow an OverflowError is raised.
             @[Primitive(:binary)]
+            @[Raises]
             def {{op.id}}(other : {{int2.id}}) : self
             end
 

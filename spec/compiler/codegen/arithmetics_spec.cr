@@ -54,4 +54,20 @@ describe "Code gen: arithmetics primitives" do
       end
     {% end %}
   end
+
+  describe "+ addition" do
+    {% for type in [UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64] %}
+      it "raises overflow for {{type}}" do
+        run(%(
+          require "prelude"
+          begin
+            {{type}}::MAX + {{type}}.new(1)
+            0
+          rescue OverflowError
+            1
+          end
+        )).to_i.should eq(1)
+      end
+    {% end %}
+  end
 end
