@@ -1,3 +1,131 @@
+# 0.26.0 (2018-08-??)
+
+## Language changes
+
+- **(breaking-change)** Revert do not collapse unions for sibling types. ([#6351], thanks @asterite)
+- **(breaking-change)** Restrict `exp.@var` to types in the same hierarchy. ([#6358], thanks @asterite)
+- **(breaking-change)** Constant lookup context in macro is now lexical. ([#5354], thanks @MakeNowJust)
+- **(breaking-change)** Evaluate instance var initializers at the metaclass level (ie: disallow using `self`). ([#6414], thanks @asterite)
+- Add `&+` `&-` `&*` `&**` operators parsing. NB: No behaviour is assigned to these operators yet. ([#6329], thanks @bcardiff)
+- Add support for empty `case` without `when`. ([#6367], thanks @straight-shoota)
+
+## Standard library
+
+### Macros
+
+- Add `pp!` and `p!` macro methods. ([#6374], thanks @straight-shoota)
+
+### Numeric
+
+- Fixed `Random#rand(Range(Float, Float))` to return `Float`. ([#6445], thanks @straight-shoota)
+- Add docs of big module overloads. ([#6336], thanks @laginha87)
+
+### Text
+
+- **(breaking-change)** `String#from_utf16(pointer : Pointer(UInt16))` returns now `{String, Pointer(UInt16)}`. ([#6333], thanks @straight-shoota)
+- Add `ECR.render` for rendering directly as `String`. ([#6371], thanks @straight-shoota)
+
+### Collections
+
+- Add docs for `StaticArray`. ([#6404], thanks @straight-shoota)
+
+### Serialization
+
+- **(breaking-change)** Add a maximum nesting level to prevent stack overflow on `YAML::Builder` and `JSON::Builder`. ([#6322], thanks @asterite)
+- Fixed compatibility for libyaml 0.2.1 regarding document end marker `...`. ([#6287], thanks @straight-shoota)
+- Add methods and options for pull parsing or hybrid parsing to `XML::Reader`. ([#5740], [#6332], thanks @felixbuenemann)
+- Fixed docs for `JSON::Any`. ([#6460], thanks @delef)
+
+
+### Time
+
+- **(breaking-change)** Make location a required argument for `Time.parse`. ([#6369], thanks @straight-shoota)
+- Add `Time.parse!`, `Time.parse_utc`, `Time.parse_local`. ([#6369], thanks @straight-shoota)
+- Fix docs comment missing ([#6387], thanks @faustinoaq)
+
+### Files
+
+- **(breaking-change)** Remove `File.each_line` method that returns an iterator. Use `IO#each_line`. ([#6301], thanks @asterite)
+- Fixed `File.join` when path separator is a component argument. ([#6328], thanks @icyleaf)
+- Fixed `Dir.glob` can now list broken symlinks. ([#6466], thanks @straight-shoota)
+- Add `File` and `Dir` support for windows. ([#5623], thanks @RX14)
+
+### Networking
+
+- Fixed `Socket#accept?` base implementation. ([#6277], thanks @ysbaddaden)
+- Fixed performance issue due to unbuffered `IO` read. `IO#sync` only affect writes, introduce `IO#read_buffering?`. ([#6304], thanks @asterite)
+- Fixed change encoding name comparison to be case insensitive for UTF-8. ([#6355], thanks @asterite)
+- Fixed support for quoted charset value in HTTP. ([#6354], thanks @asterite)
+- Fixed docs regarding udp example on `Socket::Addrinfo`. ([#6388], thanks @faustinoaq)
+- Fixed `HTTP::Client` will set `connection: close` header on one-shot requests. ([#6410], thanks @asterite)
+- Fixed `OpenSSL::Digest` for multibyte strings. ([#6471], thanks @RX14)
+- Add `HTTP::Params.new` and `HTTP::Params#empty?`. ([#6241], thanks @icyleaf)
+- Add support for multiple Etags in `If-None-Match` header for `HTTP::Request` and `HTTP::StaticFileHandler`. ([#6219], thanks @straight-shoota)
+- Add IDNs normalization to punycode in `OpenSSL::SSL::Socket`. ([#6306], thanks @paulkass)
+- Add `application/wasm` to the default MIME types of `HTTP::StaticFileHandler`. ([#6377], thanks @MakeNowJust)
+
+### Crypto
+
+- Fixed `Crypto::Bcrypt::Password#==` was hiding `Reference#==(other)`. ([#6356], thanks @straight-shoota)
+
+### Concurrency
+
+- Fixed `Atomic#swap` with reference types. ([#6428], thanks @Exilor)
+
+### Spec
+
+- Add [TAP](https://testanything.org/) formatter to spec suite. ([#6286], thanks @straight-shoota)
+
+## Compiler
+
+- Fixed named arguments expansion from double splat clash with local variable names. ([#6378], thanks @asterite)
+- Fixed auto assigned ivars arguments expansions when clash with keywords. ([#6379], thanks @asterite)
+- Add support for class variables in generic classes. ([#6348], thanks @asterite)
+- Fixed resulting type of union of tuple metaclasses. ([#6342], thanks @asterite)
+- Fixed ICE when using unbound type parameter inside generic type. ([#6292], thanks @asterite)
+- Fixed ICE when using unions of metaclasses. ([#6307], thanks @asterite)
+- Fixed ICE related to literal type guessing and generic types hierarchy. ([#6341], thanks @asterite)
+- Fixed ICE related to `not` and inlinable values. ([#6452], thanks @asterite)
+- Fixed rebind variables type in while condition after analyzing its body. ([#6295], thanks @asterite)
+- Fixed corner cases regarding automatic casts and method instantiation. ([#6284], thanks @asterite)
+- Fixed parsing of `\A` (and others) inside `%r{...}` inside macros. ([#6282], thanks @asterite)
+- Fixed parsing of of named tuple inside generic type arguments. ([#6413], thanks @asterite)
+- Fixed disallow cast from module class to virtual metaclass. ([#6320], thanks @asterite)
+- Fixed disallow `return` inside a constant's value. ([#6347], thanks @asterite)
+- Fixed debug info for closured self. ([#6346], thanks @asterite)
+- Fixed parsing error of newline before closing macro. ([#6382], thanks @asterite)
+- Fixed missing error if constant has `NoReturn` type. ([#6411], thanks @asterite)
+- Fixed give proper error when doing sizeof uninstantiated generic type. ([#6418], thanks @asterite)
+- Fixed private aliases at top-level are now considered private. ([#6432], thanks @asterite)
+- Refactor codegen of binary operators. ([#6330], thanks @bcardiff)
+- Refactor use `JSON::Serializable` instead of `JSON.mapping`. ([#6308], thanks @kostya)
+- Change how metaclasses are shown. Use `Foo.class` instead of `Foo:Class`. ([#6439], thanks @RX14)
+
+## Tools
+
+### Formatter
+
+- Fixed formatting of `{ {1}.foo, ...}` like expressions. ([#6300], thanks @asterite)
+- Fixed formatting of when with numbers. Use right alignment only if all are number literals. ([#6392], thanks @MakeNowJust)
+- Fixed formatting of comment in case's else. ([#6393], thanks @MakeNowJust)
+- Fixed code fence when language is not crystal will not be formatted. ([#6424], thanks @asterite)
+
+### Doc generator
+
+- Add line numbers at link when there are duplicated filenames in "Defined in:" section. ([#6280], thanks @r00ster91)
+
+### Playground
+
+## Others
+
+- Fixed `system_spec` does no longer emit errors messages on BSD platforms. ([#6289], thanks @jcs)
+- Fixed compilation issue when running spec against compiler and std together. ([#6312], thanks @straight-shoota)
+- Add support for llvm 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
+- CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408] thanks @bcardiff, @MakeNowJust, @r00ster91)
+- Flatten project structure created by crystal init. ([#6317], thanks @straight-shoota)
+- Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333], thanks @straight-shoota)
+- Add support for `WinError` UTF16 string messages. ([#6442], thanks @straight-shoota)
+
 # 0.25.1 (2018-06-27)
 
 ## Standard library
