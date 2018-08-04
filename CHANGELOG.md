@@ -6,12 +6,13 @@
 - **(breaking-change)** Restrict `exp.@var` to types in the same hierarchy. ([#6358], thanks @asterite)
 - **(breaking-change)** Constant lookup context in macro is now lexical. ([#5354], thanks @MakeNowJust)
 - **(breaking-change)** Evaluate instance var initializers at the metaclass level (ie: disallow using `self`). ([#6414], thanks @asterite)
+- **(breaking-change)** Add `//` operator parsing. NB: No behaviour is assigned to this operator yet. ([#6470], thanks @bcardiff)
 - Add `&+` `&-` `&*` `&**` operators parsing. NB: No behaviour is assigned to these operators yet. ([#6329], thanks @bcardiff)
 - Add support for empty `case` without `when`. ([#6367], thanks @straight-shoota)
 
 ### Macros
 
-- Add `pp!` and `p!` macro methods. ([#6374], thanks @straight-shoota)
+- Add `pp!` and `p!` macro methods. ([#6374], [#6476], thanks @straight-shoota)
 
 ## Standard library
 
@@ -54,7 +55,8 @@
 ### Networking
 
 - Fixed `Socket#accept?` base implementation. ([#6277], thanks @ysbaddaden)
-- Fixed performance issue due to unbuffered `IO` read. `IO#sync` only affect writes, introduce `IO#read_buffering?`. ([#6304], thanks @asterite)
+- Fixed performance issue due to unbuffered `IO` read. `IO#sync` only affect writes, introduce `IO#read_buffering?`. ([#6304], [#6474], thanks @asterite, @bcardiff)
+- Fixed hanlding of closed state in `HTTP::Server::Response`. ([#6477], thanks @straight-shoota)
 - Fixed change encoding name comparison to be case insensitive for UTF-8. ([#6355], thanks @asterite)
 - Fixed support for quoted charset value in HTTP. ([#6354], thanks @asterite)
 - Fixed docs regarding udp example on `Socket::Addrinfo`. ([#6388], thanks @faustinoaq)
@@ -116,6 +118,7 @@
 ### Doc generator
 
 - Add line numbers at link when there are duplicated filenames in "Defined in:" section. ([#6280], thanks @r00ster91)
+- Fix docs navigator not scrolling into open type on page load. ([#6420], thanks @soanvig)
 
 ### Playground
 
@@ -124,7 +127,7 @@
 - Fixed `system_spec` does no longer emit errors messages on BSD platforms. ([#6289], thanks @jcs)
 - Fixed compilation issue when running spec against compiler and std together. ([#6312], thanks @straight-shoota)
 - Add support for LLVM 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
-- CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408] thanks @bcardiff, @MakeNowJust, @r00ster91)
+- CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408], [#6315], thanks @bcardiff, @MakeNowJust, @r00ster91, @maiha)
 - Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333],
 - Add an optional argument to `String#check_no_null_byte.thanks @straight-shoota`)
 - Add support for `WinError` UTF-16 string messages. ([#6442], thanks @straight-shoota)
