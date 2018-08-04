@@ -9,11 +9,11 @@
 - Add `&+` `&-` `&*` `&**` operators parsing. NB: No behaviour is assigned to these operators yet. ([#6329], thanks @bcardiff)
 - Add support for empty `case` without `when`. ([#6367], thanks @straight-shoota)
 
-## Standard library
-
 ### Macros
 
 - Add `pp!` and `p!` macro methods. ([#6374], thanks @straight-shoota)
+
+## Standard library
 
 ### Numeric
 
@@ -22,7 +22,8 @@
 
 ### Text
 
-- **(breaking-change)** `String#from_utf16(pointer : Pointer(UInt16))` returns now `{String, Pointer(UInt16)}`. ([#6333], thanks @straight-shoota)
+- **(breaking-change)** `String#from_utf-16(pointer : Pointer(UInt16))` returns now `{String, Pointer(UInt16)}`. ([#6333], thanks @straight-shoota)
+- Add an optional argument to `String#check_no_null_byte` to customize error message. ([#6333], thanks @straight-shoota)
 - Add `ECR.render` for rendering directly as `String`. ([#6371], thanks @straight-shoota)
 
 ### Collections
@@ -103,10 +104,12 @@
 
 ## Tools
 
+- Flatten project structure created by `crystal init`. ([#6317], thanks @straight-shoota)
+
 ### Formatter
 
 - Fixed formatting of `{ {1}.foo, ...}` like expressions. ([#6300], thanks @asterite)
-- Fixed formatting of when with numbers. Use right alignment only if all are number literals. ([#6392], thanks @MakeNowJust)
+- Fixed formatting of `when` with numbers. Use right alignment only if all are number literals. ([#6392], thanks @MakeNowJust)
 - Fixed formatting of comment in case's else. ([#6393], thanks @MakeNowJust)
 - Fixed code fence when language is not crystal will not be formatted. ([#6424], thanks @asterite)
 
@@ -120,11 +123,11 @@
 
 - Fixed `system_spec` does no longer emit errors messages on BSD platforms. ([#6289], thanks @jcs)
 - Fixed compilation issue when running spec against compiler and std together. ([#6312], thanks @straight-shoota)
-- Add support for llvm 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
+- Add support for LLVM 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
 - CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408] thanks @bcardiff, @MakeNowJust, @r00ster91)
-- Flatten project structure created by crystal init. ([#6317], thanks @straight-shoota)
-- Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333], thanks @straight-shoota)
-- Add support for `WinError` UTF16 string messages. ([#6442], thanks @straight-shoota)
+- Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333],
+- Add an optional argument to `String#check_no_null_byte.thanks @straight-shoota`)
+- Add support for `WinError` UTF-16 string messages. ([#6442], thanks @straight-shoota)
 
 # 0.25.1 (2018-06-27)
 
@@ -290,7 +293,7 @@
 - Some finalizers were missing for example when the object where cloned. ([#5367](https://github.com/crystal-lang/crystal/pull/5367), thanks @alexbatalov)
 - Fixed sigfault handler initialization regarding `sa_mask`. ([#5677](https://github.com/crystal-lang/crystal/pull/5677) thanks @ysbaddaden)
 - Fixed missing reference symbol in ARM. ([#5640](https://github.com/crystal-lang/crystal/pull/5640), thanks @blankoworld)
-- Fixed detect llvm 5.0 by `llvm-config-5.0` command. ([#5531](https://github.com/crystal-lang/crystal/pull/5531), thanks @Vexatos)
+- Fixed detect LLVM 5.0 by `llvm-config-5.0` command. ([#5531](https://github.com/crystal-lang/crystal/pull/5531), thanks @Vexatos)
 - Restore STDIN|OUT|ERR blocking state on exit. ([#5802](https://github.com/crystal-lang/crystal/pull/5802), thanks @bew)
 - Fixed multiple `at_exit` handlers chaining. ([#5413](https://github.com/crystal-lang/crystal/pull/5413), thanks @bew)
 - Fixed senders were not notified when channels were closed. ([#5880](https://github.com/crystal-lang/crystal/pull/5880), thanks @carlhoerberg)
