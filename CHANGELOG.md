@@ -23,7 +23,7 @@
 
 ### Text
 
-- **(breaking-change)** `String#from_utf-16(pointer : Pointer(UInt16))` returns now `{String, Pointer(UInt16)}`. ([#6333], thanks @straight-shoota)
+- **(breaking-change)** `String#from_utf16(pointer : Pointer(UInt16))` returns now `{String, Pointer(UInt16)}`. ([#6333], thanks @straight-shoota)
 - Add an optional argument to `String#check_no_null_byte` to customize error message. ([#6333], thanks @straight-shoota)
 - Add `ECR.render` for rendering directly as `String`. ([#6371], thanks @straight-shoota)
 
@@ -56,7 +56,7 @@
 
 - Fixed `Socket#accept?` base implementation. ([#6277], thanks @ysbaddaden)
 - Fixed performance issue due to unbuffered `IO` read. `IO#sync` only affect writes, introduce `IO#read_buffering?`. ([#6304], [#6474], thanks @asterite, @bcardiff)
-- Fixed hanlding of closed state in `HTTP::Server::Response`. ([#6477], thanks @straight-shoota)
+- Fixed handling of closed state in `HTTP::Server::Response`. ([#6477], thanks @straight-shoota)
 - Fixed change encoding name comparison to be case insensitive for UTF-8. ([#6355], thanks @asterite)
 - Fixed support for quoted charset value in HTTP. ([#6354], thanks @asterite)
 - Fixed docs regarding udp example on `Socket::Addrinfo`. ([#6388], thanks @faustinoaq)
@@ -83,7 +83,6 @@
 
 - Fixed named arguments expansion from double splat clash with local variable names. ([#6378], thanks @asterite)
 - Fixed auto assigned ivars arguments expansions when clash with keywords. ([#6379], thanks @asterite)
-- Add support for class variables in generic classes. ([#6348], thanks @asterite)
 - Fixed resulting type of union of tuple metaclasses. ([#6342], thanks @asterite)
 - Fixed ICE when using unbound type parameter inside generic type. ([#6292], thanks @asterite)
 - Fixed ICE when using unions of metaclasses. ([#6307], thanks @asterite)
@@ -100,6 +99,7 @@
 - Fixed missing error if constant has `NoReturn` type. ([#6411], thanks @asterite)
 - Fixed give proper error when doing sizeof uninstantiated generic type. ([#6418], thanks @asterite)
 - Fixed private aliases at top-level are now considered private. ([#6432], thanks @asterite)
+- Add support for class variables in generic classes. ([#6348], thanks @asterite)
 - Refactor codegen of binary operators. ([#6330], thanks @bcardiff)
 - Refactor use `JSON::Serializable` instead of `JSON.mapping`. ([#6308], thanks @kostya)
 - Change how metaclasses are shown. Use `Foo.class` instead of `Foo:Class`. ([#6439], thanks @RX14)
@@ -129,7 +129,6 @@
 - Add support for LLVM 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
 - CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408], [#6315], thanks @bcardiff, @MakeNowJust, @r00ster91, @maiha)
 - Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333],
-- Add an optional argument to `String#check_no_null_byte.thanks @straight-shoota`)
 - Add support for `WinError` UTF-16 string messages. ([#6442], thanks @straight-shoota)
 
 # 0.25.1 (2018-06-27)
