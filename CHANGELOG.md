@@ -38,7 +38,6 @@
 - Add methods and options for pull parsing or hybrid parsing to `XML::Reader`. ([#5740], [#6332], thanks @felixbuenemann)
 - Fixed docs for `JSON::Any`. ([#6460], thanks @delef)
 
-
 ### Time
 
 - **(breaking-change)** Make location a required argument for `Time.parse`. ([#6369], thanks @straight-shoota)
@@ -50,7 +49,7 @@
 - **(breaking-change)** Remove `File.each_line` method that returns an iterator. Use `IO#each_line`. ([#6301], thanks @asterite)
 - Fixed `File.join` when path separator is a component argument. ([#6328], thanks @icyleaf)
 - Fixed `Dir.glob` can now list broken symlinks. ([#6466], thanks @straight-shoota)
-- Add `File` and `Dir` support for windows. ([#5623], thanks @RX14)
+- Add `File` and `Dir` support for Windows. ([#5623], thanks @RX14)
 
 ### Networking
 
@@ -128,7 +127,8 @@
 - Fixed compilation issue when running spec against compiler and std together. ([#6312], thanks @straight-shoota)
 - Add support for LLVM 6.0. ([#6381], [#6380], [#6383], thanks @felixbuenemann)
 - CI improvements and housekeeping. ([#6313], [#6337], [#6407], [#6408], [#6315], thanks @bcardiff, @MakeNowJust, @r00ster91, @maiha)
-- Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for windows. ([#6333],
+- Refactor platform specifics from `ENV` to `Crystal::System::Env` and implement for Windows. ([#6333], thanks @straight-shoota)
+- Support exception handling on Windows. ([#6419], thanks @RX14)
 - Add support for `WinError` UTF-16 string messages. ([#6442], thanks @straight-shoota)
 
 # 0.25.1 (2018-06-27)
@@ -150,7 +150,7 @@
 
 ### Time
 - Fixed docs regarding formatting and parsing `Time`. ([#6208](https://github.com/crystal-lang/crystal/pull/6208), [#6214](https://github.com/crystal-lang/crystal/pull/6214), thanks @r00ster91 and @straight-shoota)
-- Fixed `Time` internals for future windows support. ([#6181](https://github.com/crystal-lang/crystal/pull/6181), thanks @RX14)
+- Fixed `Time` internals for future Windows support. ([#6181](https://github.com/crystal-lang/crystal/pull/6181), thanks @RX14)
 - Add `Time::Span#microseconds`, `Int#microseconds` and `Float#microseconds`. ([#6272](https://github.com/crystal-lang/crystal/pull/6272), thanks @asterite)
 - Add specs. ([#6174](https://github.com/crystal-lang/crystal/pull/6174), thanks @straight-shoota)
 
