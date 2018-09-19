@@ -22,9 +22,11 @@ class Fiber
   protected property stack_bottom : Void*
   protected property next_fiber : Fiber?
   protected property prev_fiber : Fiber?
+  protected property thread : Thread?
   property name : String?
 
   def initialize(@name : String? = nil, &@proc : ->)
+    @thread = nil
     @stack = Fiber.allocate_stack
     @stack_bottom = @stack + STACK_SIZE
     fiber_main = ->(f : Fiber) { f.run }
@@ -82,7 +84,9 @@ class Fiber
     end
   end
 
-  def initialize
+  # Used to initialize the crystal object of the
+  # existing main fiber in the *thread*.
+  def initialize(@thread : Thread)
     @proc = Proc(Void).new { }
     @stack = Pointer(Void).null
     @stack_top = _fiber_get_stack_top
@@ -90,7 +94,13 @@ class Fiber
     @name = "main"
 
     @@list_mutex.synchronize do
-      @@first_fiber = @@last_fiber = self
+      @prev_fiber = nil
+      if last_fiber = @@last_fiber
+        @prev_fiber = last_fiber
+        last_fiber.next_fiber = @@last_fiber = self
+      else
+        @@first_fiber = @@last_fiber = self
+      end
     end
   end
 
@@ -267,8 +277,12 @@ class Fiber
   end
 
   def resume : Nil
+    # The purpose of this method is to suspend a fiber (current) and give control back
+    # to another one (self).
     current, Thread.current.current_fiber = Thread.current.current_fiber, self
-    GC.stack_bottom = @stack_bottom
+    # current will be suspended, therefore it won't be assigned to any execution thread.
+    current.thread = nil
+    self.thread = Thread.current
     {% if flag?(:aarch64) %}
       Fiber.switch_stacks(pointerof(current.@stack_top), @stack_top)
     {% else %}
@@ -316,14 +330,6 @@ class Fiber
     GC.push_stack @stack_top, @stack_bottom
   end
 
-  @@root = new
-
-  def self.root : self
-    @@root
-  end
-
-  Thread.current.current_fiber = root
-
   def self.current : self
     Thread.current.current_fiber
   end
@@ -332,7 +338,7 @@ class Fiber
   GC.before_collect do
     fiber = @@first_fiber
     while fiber
-      fiber.push_gc_roots unless fiber == Thread.current.current_fiber
+      fiber.push_gc_roots if fiber.thread.nil?
       fiber = fiber.next_fiber
     end
   end

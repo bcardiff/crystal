@@ -11,11 +11,9 @@ class Thread
   @th : LibC::PthreadT?
   @exception : Exception?
   @detached = false
-
-  property current_fiber
+  property! current_fiber : Fiber?
 
   def initialize(&@func : ->)
-    @current_fiber = uninitialized Fiber
     @@mutex.synchronize do
       @@threads << self
       @th = th = uninitialized LibC::PthreadT
@@ -32,13 +30,17 @@ class Thread
     end
   end
 
+  # Used to initialize the crystal object of the
+  # existing main thread.
+  # Note *the* thread initialized with this constructor
+  # will not call `Thread#start`.
   def initialize
-    @current_fiber = uninitialized Fiber
     @func = ->{}
 
     @@mutex.synchronize do
       @@threads << self
       @th = LibC.pthread_self
+      @current_fiber = Fiber.new(self)
     end
   end
 
@@ -60,42 +62,21 @@ class Thread
   # thread local storage (eg: OpenBSD)
   @@threads = Set(Thread).new
 
-  {% if flag?(:openbsd) %}
-    @@main = new
+  @@main = new
 
-    def self.current : Thread
-      if LibC.pthread_main_np == 1
-        return @@main
-      end
-
-      current_thread_id = LibC.pthread_self
-
-      @@mutex.synchronize do
-        current_thread = @@threads.find do |thread|
-          LibC.pthread_equal(thread.id, current_thread_id) != 0
-        end
-      end
-
-      raise "Error: failed to find current thread" unless current_thread
-      current_thread
+  def self.current : Thread
+    if main?
+      return @@main
+    else
+      find_current_by_id
     end
-
-    protected def id
-      @th.not_nil!
-    end
-  {% else %}
-    @[ThreadLocal]
-    @@current = new
-
-    def self.current
-      @@current
-    end
-  {% end %}
+  end
 
   protected def start
-    {% unless flag?(:openbsd) %}
-    @@current = self
-    {% end %}
+    # Initialize main fiber of thread once the thread has started.
+    # Before the thread actually starts there is no fiber information
+    @current_fiber ||= Fiber.new(self)
+
     begin
       @func.call
     rescue ex
@@ -103,5 +84,28 @@ class Thread
     ensure
       @@threads.delete(self)
     end
+  end
+
+  # Checks if the current thread is the main thread
+  def self.main?
+    LibC.pthread_main_np == 1
+  end
+
+  # Find the current thread object with a linear search among all threads
+  protected def self.find_current_by_id : Thread
+    @@mutex.synchronize do
+      current_thread_id = LibC.pthread_self
+
+      current_thread = @@threads.find do |thread|
+        LibC.pthread_equal(thread.id, current_thread_id) != 0
+      end
+
+      raise "Error: failed to find current thread" unless current_thread
+      current_thread
+    end
+  end
+
+  protected def id
+    @th.not_nil!
   end
 end
