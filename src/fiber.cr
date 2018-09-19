@@ -277,17 +277,24 @@ class Fiber
   end
 
   def resume : Nil
+    GC.disable
+
     # The purpose of this method is to suspend a fiber (current) and give control back
     # to another one (self).
     current, Thread.current.current_fiber = Thread.current.current_fiber, self
     # current will be suspended, therefore it won't be assigned to any execution thread.
     current.thread = nil
     self.thread = Thread.current
+
+    LibGC.register_altstack(current.@stack_bottom, current.@stack_bottom.address - current.@stack_top.address, nil, 0)
+
     {% if flag?(:aarch64) %}
       Fiber.switch_stacks(pointerof(current.@stack_top), @stack_top)
     {% else %}
       Fiber.switch_stacks(pointerof(current.@stack_top), pointerof(@stack_top))
     {% end %}
+
+    GC.enable
   end
 
   def sleep(time : Time::Span)

@@ -67,18 +67,6 @@ module GC
     end
   {% end %}
 
-  @@stack_bottom = Pointer(Void).null
-
-  # :nodoc:
-  def self.stack_bottom
-    @@stack_bottom
-  end
-
-  # :nodoc:
-  def self.stack_bottom=(@@stack_bottom : Void*)
-    @@stack_bottom
-  end
-
   # :nodoc:
   def self.push_stack(stack_top, stack_bottom)
   end

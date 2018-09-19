@@ -46,9 +46,9 @@ lib LibGC
 
   fun push_all_eager = GC_push_all_eager(bottom : Void*, top : Void*)
 
-  $stackbottom = GC_stackbottom : Void*
-
   fun set_on_collection_event = GC_set_on_collection_event(cb : ->)
+
+  fun register_altstack = GC_register_altstack(stack_start : Void*, stack_size : Word, altstack_base : Void*, altstack_size : Word)
 
   $gc_no = GC_gc_no : LibC::ULong
   $bytes_found = GC_bytes_found : LibC::Long
@@ -171,16 +171,6 @@ module GC
       LibGC.pthread_detach(thread)
     end
   {% end %}
-
-  # :nodoc:
-  def self.stack_bottom
-    LibGC.stackbottom
-  end
-
-  # :nodoc:
-  def self.stack_bottom=(pointer : Void*)
-    LibGC.stackbottom = pointer
-  end
 
   # :nodoc:
   def self.push_stack(stack_top, stack_bottom)
