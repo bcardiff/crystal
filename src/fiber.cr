@@ -10,6 +10,7 @@ end
 class Fiber
   STACK_SIZE = 8 * 1024 * 1024
 
+  @@list_mutex = Thread::Mutex.new
   @@first_fiber : Fiber? = nil
   @@last_fiber : Fiber? = nil
   @@stack_pool = [] of Void*
@@ -70,12 +71,14 @@ class Fiber
       {{ raise "Unsupported platform, only x86_64 and i686 are supported." }}
     {% end %}
 
-    @prev_fiber = nil
-    if last_fiber = @@last_fiber
-      @prev_fiber = last_fiber
-      last_fiber.next_fiber = @@last_fiber = self
-    else
-      @@first_fiber = @@last_fiber = self
+    @@list_mutex.synchronize do
+      @prev_fiber = nil
+      if last_fiber = @@last_fiber
+        @prev_fiber = last_fiber
+        last_fiber.next_fiber = @@last_fiber = self
+      else
+        @@first_fiber = @@last_fiber = self
+      end
     end
   end
 
@@ -86,7 +89,9 @@ class Fiber
     @stack_bottom = GC.stack_bottom
     @name = "main"
 
-    @@first_fiber = @@last_fiber = self
+    @@list_mutex.synchronize do
+      @@first_fiber = @@last_fiber = self
+    end
   end
 
   protected def self.allocate_stack
@@ -130,16 +135,18 @@ class Fiber
     @@stack_pool << @stack
 
     # Remove the current fiber from the linked list
-    if prev_fiber = @prev_fiber
-      prev_fiber.next_fiber = @next_fiber
-    else
-      @@first_fiber = @next_fiber
-    end
+    @@list_mutex.synchronize do
+      if prev_fiber = @prev_fiber
+        prev_fiber.next_fiber = @next_fiber
+      else
+        @@first_fiber = @next_fiber
+      end
 
-    if next_fiber = @next_fiber
-      next_fiber.prev_fiber = @prev_fiber
-    else
-      @@last_fiber = @prev_fiber
+      if next_fiber = @next_fiber
+        next_fiber.prev_fiber = @prev_fiber
+      else
+        @@last_fiber = @prev_fiber
+      end
     end
 
     # Delete the resume event if it was used by `yield` or `sleep`
