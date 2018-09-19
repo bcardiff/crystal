@@ -3,6 +3,8 @@ require "./thread/*"
 
 # :nodoc:
 class Thread
+  @@mutex = Thread::Mutex.new
+
   # Don't use this class, it is used internally by the event scheduler.
   # Use spawn and channels instead.
 
@@ -14,25 +16,30 @@ class Thread
 
   def initialize(&@func : ->)
     @current_fiber = uninitialized Fiber
-    @@threads << self
-    @th = th = uninitialized LibC::PthreadT
+    @@mutex.synchronize do
+      @@threads << self
+      @th = th = uninitialized LibC::PthreadT
 
-    ret = GC.pthread_create(pointerof(th), Pointer(LibC::PthreadAttrT).null, ->(data : Void*) {
-      (data.as(Thread)).start
-      Pointer(Void).null
-    }, self.as(Void*))
-    @th = th
+      ret = GC.pthread_create(pointerof(th), Pointer(LibC::PthreadAttrT).null, ->(data : Void*) {
+        (data.as(Thread)).start
+        Pointer(Void).null
+      }, self.as(Void*))
+      @th = th
 
-    if ret != 0
-      raise Errno.new("pthread_create")
+      if ret != 0
+        raise Errno.new("pthread_create")
+      end
     end
   end
 
   def initialize
     @current_fiber = uninitialized Fiber
     @func = ->{}
-    @@threads << self
-    @th = LibC.pthread_self
+
+    @@mutex.synchronize do
+      @@threads << self
+      @th = LibC.pthread_self
+    end
   end
 
   def finalize
@@ -63,8 +70,10 @@ class Thread
 
       current_thread_id = LibC.pthread_self
 
-      current_thread = @@threads.find do |thread|
-        LibC.pthread_equal(thread.id, current_thread_id) != 0
+      @@mutex.synchronize do
+        current_thread = @@threads.find do |thread|
+          LibC.pthread_equal(thread.id, current_thread_id) != 0
+        end
       end
 
       raise "Error: failed to find current thread" unless current_thread
