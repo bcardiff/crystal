@@ -17,4 +17,7 @@ lib LibC
   fun pthread_mutex_trylock(x0 : PthreadMutexT*) : Int
   fun pthread_mutex_unlock(x0 : PthreadMutexT*) : Int
   fun pthread_self : PthreadT
+
+  fun pthread_get_stackaddr_np(x0 : PthreadT) : Void*
+  fun pthread_get_stacksize_np(x0 : PthreadT) : SizeT
 end

@@ -86,6 +86,14 @@ class Thread
     end
   end
 
+  def stack_bottom
+    LibC.pthread_get_stackaddr_np(@th.not_nil!)
+  end
+
+  def stack_size
+    LibC.pthread_get_stacksize_np(@th.not_nil!)
+  end
+
   # Checks if the current thread is the main thread
   def self.main?
     LibC.pthread_main_np == 1

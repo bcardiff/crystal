@@ -90,7 +90,7 @@ class Fiber
     @proc = Proc(Void).new { }
     @stack = Pointer(Void).null
     @stack_top = _fiber_get_stack_top
-    @stack_bottom = GC.stack_bottom
+    @stack_bottom = thread.stack_bottom
     @name = "main"
 
     @@list_mutex.synchronize do
