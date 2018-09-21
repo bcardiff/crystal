@@ -142,7 +142,8 @@ class Fiber
     ex.inspect_with_backtrace STDERR
     STDERR.flush
   ensure
-    @@stack_pool << @stack
+    # main fiber's per thread has no @stack managed by the pool
+    @@stack_pool << @stack unless @stack.null?
 
     # Remove the current fiber from the linked list
     @@list_mutex.synchronize do
