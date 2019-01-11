@@ -1972,11 +1972,7 @@ module Crystal
 
     def memset(pointer, value, size)
       pointer = cast_to_void_pointer pointer
-      call @program.memset(@llvm_mod, llvm_context), [pointer, value, trunc(size, llvm_context.int32), int32(4), int1(0)]
-    end
-
-    def memcpy(dest, src, len, align, volatile)
-      call @program.memcpy(@llvm_mod, llvm_context), [dest, src, len, align, volatile]
+      codegen_llvm_memset pointer, value, size, int32(4), int1(0)
     end
 
     def realloc(buffer, size)
@@ -2108,14 +2104,6 @@ module Crystal
 
     def realloc(llvm_mod, llvm_context)
       llvm_mod.functions["realloc"]? || llvm_mod.functions.add("realloc", ([llvm_context.void_pointer, llvm_context.int64]), llvm_context.void_pointer)
-    end
-
-    def memset(llvm_mod, llvm_context)
-      llvm_mod.functions["llvm.memset.p0i8.i32"]? || llvm_mod.functions.add("llvm.memset.p0i8.i32", [llvm_context.void_pointer, llvm_context.int8, llvm_context.int32, llvm_context.int32, llvm_context.int1], llvm_context.void)
-    end
-
-    def memcpy(llvm_mod, llvm_context)
-      llvm_mod.functions["llvm.memcpy.p0i8.p0i8.i32"]? || llvm_mod.functions.add("llvm.memcpy.p0i8.p0i8.i32", [llvm_context.void_pointer, llvm_context.void_pointer, llvm_context.int32, llvm_context.int32, llvm_context.int1], llvm_context.void)
     end
   end
 end

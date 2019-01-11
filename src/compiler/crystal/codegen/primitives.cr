@@ -44,6 +44,12 @@ class Crystal::CodeGenVisitor
               codegen_primitive_pointer_add node, target_def, call_args
             when "pointer_diff"
               codegen_primitive_pointer_diff node, target_def, call_args
+            when "memcpy"
+              codegen_primitive_memcpy node, target_def, call_args
+            when "memmove"
+              codegen_primitive_memmove node, target_def, call_args
+            when "memset"
+              codegen_primitive_memset node, target_def, call_args
             when "struct_or_union_set"
               codegen_primitive_struct_or_union_set node, target_def, call_args
             when "external_var_set"
@@ -1135,6 +1141,18 @@ class Crystal::CodeGenVisitor
     p1 = ptr2int(call_args[1], llvm_context.int64)
     sub = builder.sub p0, p1
     builder.exact_sdiv sub, ptr2int(gep(call_args[0].type.null_pointer, 1), llvm_context.int64)
+  end
+
+  def codegen_primitive_memcpy(node, target_def, call_args)
+    codegen_llvm_memcpy(call_args[0], call_args[1], call_args[2], call_args[3], call_args[4])
+  end
+
+  def codegen_primitive_memmove(node, target_def, call_args)
+    codegen_llvm_memmove(call_args[0], call_args[1], call_args[2], call_args[3], call_args[4])
+  end
+
+  def codegen_primitive_memset(node, target_def, call_args)
+    codegen_llvm_memset(call_args[0], call_args[1], call_args[2], call_args[3], call_args[4])
   end
 
   def codegen_primitive_tuple_indexer_known_index(node, target_def, call_args)
