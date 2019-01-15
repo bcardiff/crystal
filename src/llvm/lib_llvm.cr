@@ -41,6 +41,8 @@ end
     IS_40 = {{LibLLVM::VERSION.starts_with?("4.0")}}
     IS_39 = {{LibLLVM::VERSION.starts_with?("3.9")}}
     IS_38 = {{LibLLVM::VERSION.starts_with?("3.8")}}
+
+    IS_LT_70 = {{compare_versions(LibLLVM::VERSION, "7.0.0") < 0}}
   end
 {% end %}
 
@@ -328,6 +330,8 @@ lib LibLLVM
 
     fun get_module_identifier = LLVMGetModuleIdentifier(m : ModuleRef, len : LibC::SizeT*) : UInt8*
     fun set_module_identifier = LLVMSetModuleIdentifier(m : ModuleRef, ident : UInt8*, len : LibC::SizeT)
+
+    fun attribute_get_with_alignment = LLVMAttributeGetWithAlignment(c : ContextRef, align : UInt64) : AttributeRef
   {% end %}
 
   fun get_module_context = LLVMGetModuleContext(m : ModuleRef) : ContextRef

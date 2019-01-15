@@ -26,6 +26,16 @@ module LLVM::ValueMethods
     {% end %}
   end
 
+  def add_instruction_align_attribute(index : Int, value : UInt64, context : LLVM::Context)
+    {% if LibLLVM.has_constant?(:AttributeRef) %}
+      return if value == 0
+      attribute_ref = LibLLVM.attribute_get_with_alignment(context, value)
+      LibLLVM.add_call_site_attribute(self, index, attribute_ref)
+    {% else %}
+      raise "unreachable"
+    {% end %}
+  end
+
   def constant?
     LibLLVM.is_constant(self) != 0
   end

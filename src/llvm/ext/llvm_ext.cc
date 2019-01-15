@@ -457,4 +457,12 @@ char *LLVMNormalizeTargetTriple(const char* triple) {
 }
 #endif
 
+LLVMAttributeRef LLVMAttributeGetWithAlignment(LLVMContextRef C, unsigned align) {
+#if LLVM_VERSION_GE(7, 0)
+  return wrap(Attribute::getWithAlignment(*unwrap(C), align));
+#else
+  return nullptr;
+#endif
+}
+
 }
