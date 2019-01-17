@@ -55,7 +55,7 @@ LIB_CRYSTAL_OBJS = $(subst .c,.o,$(LIB_CRYSTAL_SOURCES))
 LIB_CRYSTAL_TARGET = src/ext/libcrystal.a
 DEPS = $(LLVM_EXT_OBJ) $(LIB_CRYSTAL_TARGET)
 CFLAGS += -fPIC $(if $(debug),-g -O0)
-CXXFLAGS += $(if $(debug),-g -O0)
+CXXFLAGS += -std=gnu++11 $(if $(debug),-g -O0)
 
 ifeq (${LLVM_CONFIG},)
   $(error Could not locate llvm-config, make sure it is installed and in your PATH, or set LLVM_CONFIG)
