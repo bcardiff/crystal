@@ -6,6 +6,11 @@ sudo: required
 services:
   - docker
 
+addons:
+  apt:
+    packages:
+      - docker-ce
+
 matrix:
   fast_finish: true
   include:
