@@ -63,7 +63,30 @@ module Crystal
         type.signed? ? LLVM::DwarfTypeEncoding::Signed : LLVM::DwarfTypeEncoding::Unsigned)
     end
 
+    private macro check_overflow(prefix, expr)
+      if {{expr}} > UInt64::MAX / 8
+        puts "WARN: check_overflow #{caller[0]} #{type} #{{{prefix}}} {{expr.id}}: #{{{expr}}}"
+
+        if type.is_a?(InstanceVarContainer)
+          %ivars = type.all_instance_vars
+          %struct_type = llvm_struct_type(type)
+
+          %ivars.each_with_index do |(%name, %ivar), %idx|
+            if (%ivar_type = %ivar.type?) && (%ivar_debug_type = get_debug_type(%ivar_type))
+              %offset = @program.target_machine.data_layout.offset_of_element(%struct_type, %idx &+ (type.struct? ? 0 : 1))
+              %size = @program.target_machine.data_layout.size_in_bits(llvm_embedded_type(%ivar_type))
+
+              puts "      #{%name}\tidx: #{%idx}\toffset: #{%offset}\tsize: #{%size}"
+            else
+              puts "      #{%name}\tidx: #{%idx}\t-- no type --"
+            end
+          end
+        end
+      end
+    end
+
     def create_debug_type(type : FloatType)
+      check_overflow nil, type.bytes
       di_builder.create_basic_type(type.to_s, 8u64 * type.bytes, 8u64 * type.bytes, LLVM::DwarfTypeEncoding::Float)
     end
 
@@ -112,6 +135,7 @@ module Crystal
       size = @program.target_machine.data_layout.size_in_bits(struct_type)
       debug_type = di_builder.create_struct_type(nil, type.to_s, nil, 1, size, size, LLVM::DIFlags::Zero, nil, di_builder.get_or_create_type_array(element_types))
       unless type.struct?
+        check_overflow nil, llvm_typer.pointer_size
         debug_type = di_builder.create_pointer_type(debug_type, 8u64 * llvm_typer.pointer_size, 8u64 * llvm_typer.pointer_size, type.to_s)
       end
       di_builder.replace_temporary(tmp_debug_type, debug_type)
@@ -121,6 +145,7 @@ module Crystal
     def create_debug_type(type : PointerInstanceType)
       element_type = get_debug_type(type.element_type)
       return unless element_type
+      check_overflow nil, llvm_typer.pointer_size
       di_builder.create_pointer_type(element_type, 8u64 * llvm_typer.pointer_size, 8u64 * llvm_typer.pointer_size, type.to_s)
     end
 
