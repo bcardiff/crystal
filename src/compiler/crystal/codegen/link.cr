@@ -81,7 +81,7 @@ module Crystal
     end
 
     class_getter paths : Array(String) do
-      default_path.split(':').reject &.empty?
+      default_path.split(':', remove_empty: true)
     end
   end
 
