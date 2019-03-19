@@ -13,7 +13,7 @@ module Crystal
     @crystal_path : Array(String)
 
     def initialize(path = CrystalPath.default_path, codegen_target = Config.default_target)
-      @crystal_path = path.split(':').reject &.empty?
+      @crystal_path = path.split(':', remove_empty: true)
       add_target_path(codegen_target)
     end
 
