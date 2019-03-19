@@ -106,7 +106,6 @@ module Crystal
 
     private def lib_flags_posix
       library_path = ["/usr/lib", "/usr/local/lib"]
-      has_pkg_config = nil
 
       String.build do |flags|
         link_annotations.reverse_each do |ann|
@@ -115,15 +114,11 @@ module Crystal
           end
 
           if libname = ann.lib
-            if has_pkg_config.nil?
-              has_pkg_config = Process.run("which", {"pkg-config"}, output: Process::Redirect::Close).success?
-            end
-
             static = has_flag?("static") || ann.static?
 
             if static && (static_lib = find_static_lib(libname, CrystalLibraryPath.paths))
               flags << ' ' << static_lib
-            elsif has_pkg_config && (libflags = pkg_config_flags(libname, static, library_path))
+            elsif Program.has_pkg_config && (libflags = pkg_config_flags(libname, static, library_path))
               flags << ' ' << libflags
             elsif static && (static_lib = find_static_lib(libname, library_path))
               flags << ' ' << static_lib
@@ -189,6 +184,10 @@ module Crystal
 
         add_link_annotations type.types?, annotations
       end
+    end
+
+    class_getter has_pkg_config : Bool do
+      Process.run("which", {"pkg-config"}, output: Process::Redirect::Close).success?
     end
   end
 end
