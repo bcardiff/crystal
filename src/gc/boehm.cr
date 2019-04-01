@@ -74,6 +74,61 @@ end
 
 module GC
   # :nodoc:
+  struct RWLock
+    def initialize
+      @reader_count = Atomic(Int32).new(0)
+      @pending_writer = Atomic(Int32).new(0)
+      @writer = Thread::Mutex.new
+    end
+
+    def lock_read
+      loop do
+        # wait until writer lock is released:
+        while @pending_writer.get == 1
+          Thread.yield
+        end
+
+        # try to add a reader:
+        @reader_count.add(1)
+
+        # success: no writer acquired the lock (done)
+        return if @pending_writer.get == 0
+
+        # failure: a writer acquired the lock (try again)
+        @reader_count.sub(1)
+      end
+    end
+
+    def unlock_read
+      # just remote a reader:
+      @reader_count.sub(1)
+    end
+
+    def lock_write
+      # acquire the single writer lock:
+      @writer.lock
+
+      # tell readers there is a pending writer:
+      @pending_writer.set(1)
+
+      # wait until all readers are unlocked (or waiting):
+      until @reader_count.get == 0
+        Thread.yield
+      end
+    end
+
+    def unlock_write
+      # tell readers there is no longer a pending writer:
+      @pending_writer.set(0)
+
+      # release the single writer lock:
+      @writer.unlock
+    end
+  end
+
+  @@rwlock = uninitialized RWLock
+
+  # :nodoc:
   def self.malloc(size : LibC::SizeT) : Void*
     LibGC.malloc(size)
   end
@@ -93,6 +148,10 @@ module GC
       LibGC.set_handle_fork(1)
     {% end %}
     LibGC.init
+
+    {% if flag?(:preview_mt) %}
+      @@rwlock = RWLock.new
+    {% end %}
 
     LibGC.set_start_callback ->do
       GC.lock_write
@@ -204,23 +263,29 @@ module GC
   # :nodoc:
   def self.lock_read
     {% if flag?(:preview_mt) %}
-      GC.disable
+      @@rwlock.lock_read
     {% end %}
   end
 
   # :nodoc:
   def self.unlock_read
     {% if flag?(:preview_mt) %}
-      GC.enable
+      @@rwlock.unlock_read
     {% end %}
   end
 
   # :nodoc:
   def self.lock_write
+    {% if flag?(:preview_mt) %}
+      @@rwlock.lock_write
+    {% end %}
   end
 
   # :nodoc:
   def self.unlock_write
+    {% if flag?(:preview_mt) %}
+      @@rwlock.unlock_write
+    {% end %}
   end
 
   # :nodoc:
