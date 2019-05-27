@@ -89,13 +89,13 @@ module Crystal
       aggregate_index union_pointer, 0
     end
 
-    def union_value(union_pointer)
+    def union_value(union_pointer, union_type : MixedUnionType, value_type : Type)
       aggregate_index union_pointer, 1
     end
 
-    def store_in_union(union_pointer, value_type, value)
+    def store_in_union(union_type : MixedUnionType, union_pointer, value_type, value)
       store type_id(value, value_type), union_type_id(union_pointer)
-      casted_value_ptr = cast_to_pointer(union_value(union_pointer), value_type)
+      casted_value_ptr = cast_to_pointer(union_value(union_pointer, union_type, value_type), value_type)
       store value, casted_value_ptr
     end
 
@@ -109,7 +109,7 @@ module Crystal
       int_type = llvm_context.int((union_size * 8).to_i32)
 
       bool_as_extended_int = builder.zext(value, int_type)
-      casted_value_ptr = bit_cast(union_value(union_pointer), int_type.pointer)
+      casted_value_ptr = bit_cast(union_value(union_pointer, union_type, @program.bool), int_type.pointer)
       store bool_as_extended_int, casted_value_ptr
     end
 
@@ -118,7 +118,7 @@ module Crystal
       value = union_value_type.null
 
       store type_id(value, @program.nil), union_type_id(union_pointer)
-      casted_value_ptr = bit_cast union_value(union_pointer), union_value_type.pointer
+      casted_value_ptr = bit_cast union_value(union_pointer, target_type, @program.nil), union_value_type.pointer
       store value, casted_value_ptr
     end
   end
