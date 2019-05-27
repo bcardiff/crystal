@@ -1,4 +1,21 @@
 module Crystal
+  class Program
+    def expanded_unions?
+      has_flag?("preview_mt") || has_flag?("expanded_unions")
+    end
+  end
+
+  class MixedUnionType
+    # Index of components for each type that the union can hold.
+    property! value_offsets : Hash(Type, Int32)
+
+    def value_offset(type : Type) : Int32
+      value_offsets.fetch(type) {
+        raise "BUG: looking for component value for #{type} in a #{self}."
+      }
+    end
+  end
+
   class LLVMTyper
     private def create_llvm_type(type : MixedUnionType, wants_size)
       llvm_name = llvm_name(type, wants_size)
@@ -14,28 +31,55 @@ module Crystal
           @structs[llvm_name] = a_struct
         end
 
-        max_size = 0
-        type.expand_union_types.each do |subtype|
-          unless subtype.void?
-            size = size_of(llvm_type(subtype, wants_size: true))
-            max_size = size if size > max_size
+        unless @program.expanded_unions?
+          max_size = 0
+          type.expand_union_types.each do |subtype|
+            unless subtype.void?
+              size = size_of(llvm_type(subtype, wants_size: true))
+              max_size = size if size > max_size
+            end
           end
-        end
 
-        max_size /= pointer_size.to_f
-        max_size = max_size.ceil.to_i
+          max_size /= pointer_size.to_f
+          max_size = max_size.ceil.to_i
 
-        max_size = 1 if max_size == 0
+          max_size = 1 if max_size == 0
 
-        llvm_value_type = size_t.array(max_size)
+          llvm_value_type = size_t.array(max_size)
 
-        if wants_size
-          @wants_size_union_value_cache[type] = llvm_value_type
+          if wants_size
+            @wants_size_union_value_cache[type] = llvm_value_type
+          else
+            @union_value_cache[type] = llvm_value_type
+          end
+
+          [@llvm_context.int32, llvm_value_type]
         else
-          @union_value_cache[type] = llvm_value_type
-        end
+          # TODO check if other than MixedUnionType are actually used
+          res = [@llvm_context.int32] # type_id
+          type.value_offsets = value_offsets = Hash(Type, Int32).new
 
-        [@llvm_context.int32, llvm_value_type]
+          has_not_nil_reference_like = type.expand_union_types.any? { |t|
+            t.reference_like? && !t.is_a?(NilType)
+          }
+
+          res << @llvm_context.void_pointer if has_not_nil_reference_like
+
+          type.expand_union_types.each do |subtype|
+            case subtype
+            when NilType
+              # NilType is mapped to -1 if nils are allowed as values.
+              value_offsets[subtype] = -1
+            when .reference_like?
+              value_offsets[subtype] = 1
+            else
+              value_offsets[subtype] = res.size
+              res << llvm_embedded_type(subtype, wants_size).as(LLVM::Type)
+            end
+          end
+
+          res
+        end
       end
     end
   end
