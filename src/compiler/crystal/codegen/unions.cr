@@ -96,7 +96,12 @@ module Crystal
     #
     # See `#union_value_pointer`
     def union_value_struct_pointer(union_pointer, union_type : MixedUnionType, value_type : Type)
-      aggregate_index union_pointer, 1
+      unless @program.expanded_unions?
+        aggregate_index union_pointer, 1
+      else
+        # TODO value_type might be a NilableType, might need to adapt value_type
+        aggregate_index union_pointer, union_type.value_offset(value_type)
+      end
     end
 
     # Returns access to a pointer that can hold a value_type within the specified union.
@@ -106,32 +111,85 @@ module Crystal
       cast_to_pointer(union_value_struct_pointer(union_pointer, union_type, value_type), value_type)
     end
 
-    def store_in_union(union_type : MixedUnionType, union_pointer, value_type, value)
-      store type_id(value, value_type), union_type_id(union_pointer)
-      store value, union_value_pointer(union_pointer, union_type, value_type)
+    def store_in_union(union_type : MixedUnionType, union_pointer, value_type : Type, value)
+      # TODO assert value_type is a non-union
+      unless @program.expanded_unions?
+        store type_id(value, value_type), union_type_id(union_pointer)
+        store value, union_value_pointer(union_pointer, union_type, value_type)
+      else
+        store value, union_value_pointer(union_pointer, union_type, value_type)
+        store type_id(value, value_type), union_type_id(union_pointer)
+      end
+    end
+
+    def store_in_union(union_type : MixedUnionType, union_pointer, value_type : UnionType, value)
+      unless @program.expanded_unions?
+        store type_id(value, value_type), union_type_id(union_pointer)
+        store value, union_value_pointer(union_pointer, union_type, value_type)
+      else
+        current_block = insert_block
+        exit = new_block "store_in_union_exit"
+
+        cases = {} of LLVM::Value => LLVM::BasicBlock
+        value_type.expand_union_types.each do |subtype|
+          block = new_block "subtype_#{subtype}"
+          type_id = type_id(subtype)
+          cases[type_id] = block
+          position_at_end block
+
+          # TODO the implementation to assign all reference type values
+          # yields to the same code, they could be de-duplicated.
+          store_in_union(union_type, union_pointer, subtype, value)
+          br exit
+        end
+
+        otherwise = new_block "store_in_union_unreachable"
+        position_at_end otherwise
+        unreachable
+
+        position_at_end current_block
+        switch type_id(value, value_type), otherwise, cases
+        position_at_end exit
+      end
+    end
+
+    def store_in_union(union_type : MixedUnionType, union_pointer, value_type : NilType, value)
+      unless @program.expanded_unions?
+        raise "BUG: unreachable"
+      else
+        store type_id(@program.nil), union_type_id(union_pointer)
+      end
     end
 
     def store_bool_in_union(union_type, union_pointer, value)
-      store type_id(value, @program.bool), union_type_id(union_pointer)
+      unless @program.expanded_unions?
+        store type_id(value, @program.bool), union_type_id(union_pointer)
 
-      # To store a boolean in a union
-      # we sign-extend it to the size in bits of the union
-      union_value_type = llvm_union_value_type(union_type)
-      union_size = @llvm_typer.size_of(union_value_type)
-      int_type = llvm_context.int((union_size * 8).to_i32)
+        # To store a boolean in a union
+        # we sign-extend it to the size in bits of the union
+        union_value_type = llvm_union_value_type(union_type)
+        union_size = @llvm_typer.size_of(union_value_type)
+        int_type = llvm_context.int((union_size * 8).to_i32)
 
-      bool_as_extended_int = builder.zext(value, int_type)
-      casted_value_ptr = bit_cast(union_value_struct_pointer(union_pointer, union_type, @program.bool), int_type.pointer)
-      store bool_as_extended_int, casted_value_ptr
+        bool_as_extended_int = builder.zext(value, int_type)
+        casted_value_ptr = bit_cast(union_value_struct_pointer(union_pointer, union_type, @program.bool), int_type.pointer)
+        store bool_as_extended_int, casted_value_ptr
+      else
+        store_in_union(union_type, union_pointer, @program.bool, value)
+      end
     end
 
     def store_nil_in_union(union_pointer, target_type)
-      union_value_type = llvm_union_value_type(target_type)
-      value = union_value_type.null
+      unless @program.expanded_unions?
+        union_value_type = llvm_union_value_type(target_type)
+        value = union_value_type.null
 
-      store type_id(value, @program.nil), union_type_id(union_pointer)
-      casted_value_ptr = bit_cast union_value_struct_pointer(union_pointer, target_type, @program.nil), union_value_type.pointer
-      store value, casted_value_ptr
+        store type_id(value, @program.nil), union_type_id(union_pointer)
+        casted_value_ptr = bit_cast union_value_struct_pointer(union_pointer, target_type, @program.nil), union_value_type.pointer
+        store value, casted_value_ptr
+      else
+        store type_id(@program.nil), union_type_id(union_pointer)
+      end
     end
   end
 end
