@@ -89,14 +89,26 @@ module Crystal
       aggregate_index union_pointer, 0
     end
 
-    def union_value(union_pointer, union_type : MixedUnionType, value_type : Type)
+    # Returns access to pointer to the representation struct of the union
+    # that can hold a value_type.
+    # Depending on the codegen of the union it might need a cast before
+    # using it as a value_type directly.
+    #
+    # See `#union_value_pointer`
+    def union_value_struct_pointer(union_pointer, union_type : MixedUnionType, value_type : Type)
       aggregate_index union_pointer, 1
+    end
+
+    # Returns access to a pointer that can hold a value_type within the specified union.
+    #
+    # See `#union_value_struct_pointer`
+    def union_value_pointer(union_pointer, union_type : MixedUnionType, value_type : Type)
+      cast_to_pointer(union_value_struct_pointer(union_pointer, union_type, value_type), value_type)
     end
 
     def store_in_union(union_type : MixedUnionType, union_pointer, value_type, value)
       store type_id(value, value_type), union_type_id(union_pointer)
-      casted_value_ptr = cast_to_pointer(union_value(union_pointer, union_type, value_type), value_type)
-      store value, casted_value_ptr
+      store value, union_value_pointer(union_pointer, union_type, value_type)
     end
 
     def store_bool_in_union(union_type, union_pointer, value)
@@ -109,7 +121,7 @@ module Crystal
       int_type = llvm_context.int((union_size * 8).to_i32)
 
       bool_as_extended_int = builder.zext(value, int_type)
-      casted_value_ptr = bit_cast(union_value(union_pointer, union_type, @program.bool), int_type.pointer)
+      casted_value_ptr = bit_cast(union_value_struct_pointer(union_pointer, union_type, @program.bool), int_type.pointer)
       store bool_as_extended_int, casted_value_ptr
     end
 
@@ -118,7 +130,7 @@ module Crystal
       value = union_value_type.null
 
       store type_id(value, @program.nil), union_type_id(union_pointer)
-      casted_value_ptr = bit_cast union_value(union_pointer, target_type, @program.nil), union_value_type.pointer
+      casted_value_ptr = bit_cast union_value_struct_pointer(union_pointer, target_type, @program.nil), union_value_type.pointer
       store value, casted_value_ptr
     end
   end
