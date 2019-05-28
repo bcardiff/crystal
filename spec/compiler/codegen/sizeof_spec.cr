@@ -48,10 +48,21 @@ describe "Code gen: sizeof" do
     # be struct { 8 bytes, 8 bytes }.
     #
     # In 32 bits structs are aligned to 4 bytes, so it remains the same.
+    #
+    # With expanded unions it is represented as:
+    #
+    #   struct {
+    #      4 bytes, # for the type id
+    #      4 bytes, # for the Int32
+    #      8 bytes, # for the Float64
+    #   }
+    #
+    # But in 64 bits structs are aligned to 8 bytes, so it'll actually
+    # be struct { 8 bytes, 8 bytes, 8 bytes }.
     {% if flag?(:bits64) %}
-      size.should eq(16)
+      size.should eq(has_expanded_unions_flag? ? 24 : 16)
     {% else %}
-      size.should eq(12)
+      size.should eq(has_expanded_unions_flag? ? 16 : 12)
     {% end %}
   end
 
@@ -178,25 +189,38 @@ describe "Code gen: sizeof" do
   {% if flag?(:x86_64) %}
     it "returns correct sizeof for abstract struct (#4319)" do
       size = run(%(
-        abstract struct Entry
-        end
-
-        struct FooEntry < Entry
-          def initialize
-            @uid = ""
+          abstract struct Entry
           end
-        end
 
-        struct BarEntry < Entry
-          def initialize
-            @uid = ""
+          struct FooEntry < Entry
+            def initialize
+              @uid = ""
+            end
           end
-        end
 
-        sizeof(Entry)
-        )).to_i
+          struct BarEntry < Entry
+            def initialize
+              @uid = ""
+            end
+          end
 
-      size.should eq(16)
+          sizeof(Entry)
+          )).to_i
+
+      # Without expanded_unions
+      #
+      # %"(BarEntry | FooEntry)" = type { i32, [1 x i64] }
+      # adding 8 bit alignments: 16 bytes
+
+      # With expanded_unions
+      #
+      # %"(BarEntry | FooEntry)" = type { i32, %BarEntry, %FooEntry }
+      # %BarEntry = type { %String* }
+      # %String = type { i32, i32, i32, i8 }
+      # %FooEntry = type { %String* }
+      # adding 8 bit alignments: 24 bytes
+
+      size.should eq(has_expanded_unions_flag? ? 24 : 16)
     end
   {% end %}
 

@@ -10,6 +10,15 @@ module Crystal
     property! value_offsets : Hash(Type, Int32)
 
     def value_offset(type : Type) : Int32
+      # TODO assert type is non-union
+
+      # non nilable references are stored always after type_id component
+      # Since this is used in codegen, the semantic analysis should've
+      # restrict the sound usage of the union.
+      # For convenient, a metaclass has a minimal representation. The same pointer
+      # is reused.
+      return 1 if (type.reference_like? && !type.nil_type?) || type.metaclass?
+
       value_offsets.fetch(type) {
         raise "BUG: looking for component value for #{type} in a #{self}."
       }
@@ -60,18 +69,22 @@ module Crystal
           type.value_offsets = value_offsets = Hash(Type, Int32).new
 
           has_not_nil_reference_like = type.expand_union_types.any? { |t|
-            t.reference_like? && !t.is_a?(NilType)
+            (t.reference_like? && !t.nil_type?) || t.metaclass?
           }
 
           res << @llvm_context.void_pointer if has_not_nil_reference_like
 
           type.expand_union_types.each do |subtype|
             case subtype
-            when NilType
+            when .nil_type?
               # NilType is mapped to -1 if nils are allowed as values.
               value_offsets[subtype] = -1
             when .reference_like?
-              value_offsets[subtype] = 1
+              # non nilable references are stored always after type_id component
+              # See MixedUnionType#value_offset
+            when .metaclass?
+              # metaclass representation is not used, but required to exist.
+              # See MixedUnionType#value_offset
             else
               value_offsets[subtype] = res.size
               res << llvm_embedded_type(subtype, wants_size).as(LLVM::Type)
@@ -117,8 +130,14 @@ module Crystal
         store type_id(value, value_type), union_type_id(union_pointer)
         store value, union_value_pointer(union_pointer, union_type, value_type)
       else
-        store value, union_value_pointer(union_pointer, union_type, value_type)
-        store type_id(value, value_type), union_type_id(union_pointer)
+        case value_type
+        when .reference_like?
+          store value, union_value_pointer(union_pointer, union_type, value_type)
+          store type_id(@program.reference), union_type_id(union_pointer)
+        else
+          store value, union_value_pointer(union_pointer, union_type, value_type)
+          store type_id(value, value_type), union_type_id(union_pointer)
+        end
       end
     end
 
@@ -193,7 +212,31 @@ module Crystal
     end
 
     private def type_id_impl(value, type : MixedUnionType)
-      load(union_type_id(value))
+      unless @program.expanded_unions?
+        load(union_type_id(value))
+      else
+        stored_type_id = load(union_type_id(value))
+
+        reference_block, exit_block = new_blocks "reference", "exit"
+        phi_table = LLVM::PhiTable.new
+
+        # If the value at stored_type_id is not type_id(@program.reference)
+        # the value can be used directly as the type_id of the value in the union (exit_block),
+        # otherwise we need to dereference that value (reference_block).
+        # All reference types will hold a type id as first component in the struct,
+        # hence casting the pointer to a i32** is valid.
+
+        cond equal?(type_id(@program.reference), stored_type_id), reference_block, exit_block
+        phi_table.add insert_block, stored_type_id
+
+        position_at_end reference_block
+        casted_value_ptr = bit_cast(union_value_struct_pointer(value, type, @program.reference), @llvm_context.int32.pointer.pointer)
+        phi_table.add insert_block, load(load(casted_value_ptr))
+        br exit_block
+
+        position_at_end exit_block
+        phi llvm_context.int32, phi_table
+      end
     end
   end
 end
