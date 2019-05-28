@@ -240,7 +240,24 @@ module Crystal
     end
 
     def downcast_distinct(value, to_type : NilableType, from_type : MixedUnionType)
-      load union_value_pointer(value, from_type, to_type)
+      unless @program.expanded_unions?
+        load union_value_pointer(value, from_type, to_type)
+      else
+        stored_type_id = load(union_type_id(value))
+
+        not_nil_block, exit_block = new_blocks "not_nil", "exit"
+        phi_table = LLVM::PhiTable.new
+
+        cond equal?(type_id(@program.nil), stored_type_id), exit_block, not_nil_block
+        phi_table.add insert_block, llvm_type(to_type).null
+
+        position_at_end not_nil_block
+        phi_table.add insert_block, load(union_value_pointer(value, from_type, to_type))
+        br exit_block
+
+        position_at_end exit_block
+        phi llvm_type(to_type), phi_table
+      end
     end
   end
 end
