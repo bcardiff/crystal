@@ -429,10 +429,6 @@ class Crystal::CodeGenVisitor
     end
   end
 
-  def downcast_distinct(value, to_type : NilableType, from_type : MixedUnionType)
-    load union_value_pointer(value, from_type, to_type)
-  end
-
   def downcast_distinct(value, to_type : BoolType, from_type : MixedUnionType)
     value_ptr = union_value_struct_pointer(value, from_type, to_type)
     value = cast_to_pointer(value_ptr, @program.int8)

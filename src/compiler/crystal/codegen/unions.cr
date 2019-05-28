@@ -238,5 +238,9 @@ module Crystal
         phi llvm_context.int32, phi_table
       end
     end
+
+    def downcast_distinct(value, to_type : NilableType, from_type : MixedUnionType)
+      load union_value_pointer(value, from_type, to_type)
+    end
   end
 end
