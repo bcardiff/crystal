@@ -191,5 +191,9 @@ module Crystal
         store type_id(@program.nil), union_type_id(union_pointer)
       end
     end
+
+    private def type_id_impl(value, type : MixedUnionType)
+      load(union_type_id(value))
+    end
   end
 end
