@@ -68,13 +68,29 @@ module Crystal
           res = [@llvm_context.int32] # type_id
           type.value_offsets = value_offsets = Hash(Type, Int32).new
 
-          has_not_nil_reference_like = type.expand_union_types.any? { |t|
+          # Collect all concrete types
+          all_concrete_types = Set(Type).new
+          type.expand_union_types.each do |subtype|
+            subtype = subtype.remove_indirection
+
+            if subtype.responds_to?(:concrete_types)
+              subtype.concrete_types.each do |concrete_subtype|
+                all_concrete_types << concrete_subtype
+              end
+            else
+              all_concrete_types << subtype
+            end
+          end
+
+          has_not_nil_reference_like = all_concrete_types.any? { |t|
             (t.reference_like? && !t.nil_type?) || t.metaclass?
           }
 
-          res << @llvm_context.void_pointer if has_not_nil_reference_like
+          res << @llvm_context.int32.pointer if has_not_nil_reference_like
 
-          type.expand_union_types.each do |subtype|
+          # TODO build unions of unions with reference type via aliases to check that references are understood
+
+          all_concrete_types.each do |subtype|
             case subtype
             when .nil_type?
               # NilType is mapped to -1 if nils are allowed as values.
@@ -87,9 +103,18 @@ module Crystal
               # See MixedUnionType#value_offset
             else
               value_offsets[subtype] = res.size
-              res << llvm_embedded_type(subtype, wants_size).as(LLVM::Type)
+              size = llvm_embedded_type(subtype).as(LLVM::Type)
+              res << size
             end
           end
+
+          # TODO handle union_value_cache. why the type_id component is not included?
+          #
+          # if wants_size
+          #   @wants_size_union_value_cache[type] = llvm_value_type
+          # else
+          #   @union_value_cache[type] = llvm_value_type
+          # end
 
           res
         end
@@ -130,10 +155,14 @@ module Crystal
         store type_id(value, value_type), union_type_id(union_pointer)
         store value, union_value_pointer(union_pointer, union_type, value_type)
       else
-        case value_type
-        when .reference_like?
-          store value, union_value_pointer(union_pointer, union_type, value_type)
+        case
+        when value_type.reference_like?
+          store bit_cast(value, @llvm_context.int32.pointer), union_value_struct_pointer(union_pointer, union_type, @program.reference)
           store type_id(@program.reference), union_type_id(union_pointer)
+        when value_type.struct? && value_type.abstract? && value_type.responds_to?(:subclasses)
+          union_of_concrete_types = @program.union_of(value_type.subclasses)
+          raise "BUG: expanding abstract struct without subclasses #{value_type}" unless union_of_concrete_types
+          store_in_union(union_type, union_pointer, union_of_concrete_types, value)
         else
           store value, union_value_pointer(union_pointer, union_type, value_type)
           store type_id(value, value_type), union_type_id(union_pointer)
@@ -150,16 +179,30 @@ module Crystal
         exit = new_block "store_in_union_exit"
 
         cases = {} of LLVM::Value => LLVM::BasicBlock
-        value_type.expand_union_types.each do |subtype|
-          block = new_block "subtype_#{subtype}"
-          type_id = type_id(subtype)
-          cases[type_id] = block
-          position_at_end block
+        subtype_reference = nil
 
-          # TODO the implementation to assign all reference type values
-          # yields to the same code, they could be de-duplicated.
-          store_in_union(union_type, union_pointer, subtype, value)
-          br exit
+        value_type.expand_union_types.each do |subtype|
+          if subtype.reference_like? && !subtype.nil_type?
+            # the implementation to assign all reference type values
+            # yields to the same code, they could be de-duplicated.
+            subtype_reference ||= begin
+              block = new_block "subtype_reference"
+              position_at_end block
+              store_in_union(union_type, union_pointer, @program.reference, value)
+              br exit
+
+              block
+            end
+
+            cases[type_id(subtype)] = subtype_reference
+          else
+            block = new_block "subtype_#{subtype}"
+            position_at_end block
+            store_in_union(union_type, union_pointer, subtype, value)
+            br exit
+
+            cases[type_id(subtype)] = block
+          end
         end
 
         otherwise = new_block "store_in_union_unreachable"
