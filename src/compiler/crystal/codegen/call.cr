@@ -350,6 +350,10 @@ class Crystal::CodeGenVisitor
       Phi.open(self, node, old_needs_value) do |phi|
         # Iterate all defs and check if any match the current types, given their ids (obj_type_id and arg_type_ids)
         target_defs.each do |a_def|
+          next if (a_def_owner = a_def.owner).is_a?(VirtualMetaclassType) &&
+                  a_def_owner.instance_type.struct? &&
+                  a_def_owner.instance_type.abstract?
+
           if is_super
             # A super call always matches the obj type
             result = int1(1)
