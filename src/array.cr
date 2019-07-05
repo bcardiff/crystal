@@ -66,11 +66,24 @@ class Array(T)
       buffer
     end
 
+    # Returns a buffer that can hold at least *capacity* elements.
+    # May return self if capacity is enough.
     def realloc(capacity)
       # GC.realloc may return the same pointer if the allocated memory is enough already
       buffer = GC.realloc(Pointer(Void).new(object_id), self.class.allocation_size(capacity)).as(Buffer(U))
       buffer.initialize(capacity)
       buffer
+    end
+
+    # Returns a buffer that can hold at least *required_capacity* elements.
+    # The actual capacity is guaranteed to be a power of 2.
+    # May return self if capacity is enough.
+    def ensure_capacity(required_capacity)
+      if required_capacity > @capacity
+        self.realloc(Math.pw2ceil(required_capacity))
+      else
+        self
+      end
     end
 
     @[AlwaysInline]
@@ -446,7 +459,7 @@ class Array(T)
       @size -= diff
     else
       # Need to grow
-      resize_to_capacity(Math.pw2ceil(@size + diff))
+      @buffer = @buffer.realloc(Math.pw2ceil(@size + diff))
       (@buffer.data + index + values.size).move_from(@buffer.data + index + count, size - index - count)
       (@buffer.data + index).copy_from(values.to_unsafe, values.size)
       @size += diff
@@ -618,7 +631,7 @@ class Array(T)
   def concat(other : Array)
     other_size = other.size
     new_size = size + other_size
-    resize_to_capacity(Math.pw2ceil(new_size)) if new_size > @buffer.capacity
+    @buffer = @buffer.ensure_capacity(new_size)
 
     # TODO MT-Safe if other size is shrinked while doing the operation
     # we could be allowing access to uninitialized T at the end of the array.
@@ -1487,7 +1500,7 @@ class Array(T)
   # ```
   def push(*values : T)
     new_size = @size + values.size
-    resize_to_capacity(Math.pw2ceil(new_size)) if new_size > @buffer.capacity
+    @buffer = @buffer.ensure_capacity(new_size)
     ptr = @buffer.data
     values.each_with_index do |value, i|
       ptr[@size + i] = value
@@ -1505,7 +1518,7 @@ class Array(T)
     # In case self is accessed simultaneously we set the size to a safe lower bound
     # until the copy of the buffer is done
     @size = Math.min(_other_size, @size)
-    resize_to_capacity(Math.pw2ceil(_other_size)) if _other_size > @buffer.capacity
+    @buffer = @buffer.ensure_capacity(_other_size)
 
     @buffer.data.copy_from(_other_ptr, _other_size)
     @size = _other_size
@@ -1965,7 +1978,7 @@ class Array(T)
   # of values to add to the array. Returns `self`.
   def unshift(*values : T)
     new_size = @size + values.size
-    resize_to_capacity(Math.pw2ceil(new_size)) if new_size > @buffer.capacity
+    @buffer = @buffer.ensure_capacity(new_size)
     move_value = values.size
     ptr = @buffer.data
     ptr.move_to(ptr + move_value, @size)
@@ -1989,11 +2002,7 @@ class Array(T)
 
   private def double_capacity
     capacity = @buffer.capacity
-    resize_to_capacity(capacity == 0 ? 3 : (capacity * 2))
-  end
-
-  private def resize_to_capacity(capacity)
-    @buffer = @buffer.realloc(capacity)
+    @buffer = @buffer.realloc(capacity == 0 ? 3 : (capacity * 2))
   end
 
   protected def to_lookup_hash
