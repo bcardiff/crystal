@@ -23,6 +23,14 @@ private class Spaceship
   end
 end
 
+class Collected
+  class_getter finalized : Int32 = 0
+
+  def finalize
+    @@finalized += 1
+  end
+end
+
 describe "Array" do
   describe "new" do
     it "creates with default value" do
@@ -48,6 +56,36 @@ describe "Array" do
       expect_raises(ArgumentError, "Negative array size") do
         Array(Int32).new(-1)
       end
+    end
+  end
+
+  describe "GC integration" do
+    it "Collects objects referenced in buffer outside array size" do
+      Collected.finalized.should eq(0)
+      ->{
+        a = [] of Collected
+        10.times do
+          a << Collected.new
+        end
+        Collected.finalized.should eq(0)
+        upper_capacity = a.@buffer.capacity
+
+        5.times { a.pop; nil }
+
+        # after a delete, the buffer is not cleared (untested)
+        # and the capacity remains
+        a.@buffer.capacity.should eq(upper_capacity)
+
+        GC.collect
+
+        # Due to how elements are pops there is a +/-1 object that
+        # could not be collected
+        Collected.finalized.should be >= 4
+        Collected.finalized.should be <= 5
+      }.call # force a change in the stack
+
+      GC.collect
+      Collected.finalized.should eq(10)
     end
   end
 

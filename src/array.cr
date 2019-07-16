@@ -44,9 +44,6 @@
 # set << 3
 # ```
 class Array(T)
-  include Indexable(T)
-  include Comparable(Array)
-
   # :nodoc:
   class Buffer(U)
     getter capacity : Int32
@@ -63,15 +60,15 @@ class Array(T)
       buffer = GC.malloc(allocation_size(capacity)).as(Buffer(U))
       set_crystal_type_id(buffer)
       buffer.initialize(capacity.to_i32)
+      GC.add_finalizer(buffer) if buffer.responds_to?(:finalize)
       buffer
     end
 
     # Returns a buffer that can hold at least *capacity* elements.
     # May return self if capacity is enough.
     def realloc(capacity)
-      # GC.realloc may return the same pointer if the allocated memory is enough already
-      buffer = GC.realloc(Pointer(Void).new(object_id), self.class.allocation_size(capacity)).as(Buffer(U))
-      buffer.initialize(capacity)
+      buffer = Buffer(U).new(capacity)
+      self.data.copy_to(buffer.data, self.capacity) if self.capacity > 0
       buffer
     end
 
@@ -92,6 +89,15 @@ class Array(T)
     end
   end
 
+  # Order is important for the custom GC mark procedure.
+  # See GC.malloc_array. When #7967 is fixed it can be removed.
+  @size : Int32
+  @element_size : Int32
+  @buffer : Buffer(T)
+
+  include Indexable(T)
+  include Comparable(Array)
+
   # Returns the number of elements in the array.
   #
   # ```
@@ -102,6 +108,7 @@ class Array(T)
   # Creates a new empty Array.
   def initialize
     @size = 0
+    @element_size = sizeof(T)
     @buffer = Buffer(T).new(0)
   end
 
@@ -123,6 +130,7 @@ class Array(T)
     end
 
     @size = 0
+    @element_size = sizeof(T)
     @buffer = Buffer(T).new(initial_capacity)
   end
 
@@ -142,10 +150,16 @@ class Array(T)
     end
 
     @size = size.to_i
-
+    @element_size = sizeof(T)
     @buffer = Buffer(T).new(@size)
     ptr = @buffer.data
     @size.times { |i| ptr[i] = value }
+  end
+
+  def self.allocate
+    blob = GC.malloc_array(T).as(Array(T))
+    set_crystal_type_id(blob)
+    blob
   end
 
   # Creates a new `Array` of the given *size* and invokes the given block once
@@ -180,6 +194,7 @@ class Array(T)
   # end
   # ```
   def self.build(capacity : Int) : self
+    # TODO review MT
     ary = Array(T).new(capacity)
     ary.size = (yield ary.to_unsafe).to_i
     ary
@@ -1418,7 +1433,7 @@ class Array(T)
       @size -= 1
       ptr = @buffer.data
       value = ptr[@size]
-      (ptr + @size).clear
+      # (ptr + @size).clear
       value
     end
   end
@@ -1561,6 +1576,7 @@ class Array(T)
   end
 
   def rotate(n = 1)
+    # TODO review MT
     return self if size == 0
     n %= size
     return self if n == 0

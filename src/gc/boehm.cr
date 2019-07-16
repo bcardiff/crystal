@@ -62,6 +62,24 @@ lib LibGC
 
   fun size = GC_size(addr : Void*) : LibC::SizeT
 
+  type FreeList = Void*
+  type MsEntry = Void
+  type MarkProc = Word*, MsEntry*, MsEntry*, Word -> MsEntry*
+  type Kind = LibC::Int
+
+  LOG_MAX_MARK_PROCS = 6
+  DS_TAG_BITS        = 2
+  DS_PROC            = 2
+
+  fun new_free_list = GC_new_free_list : FreeList*
+  fun new_proc = GC_new_proc(MarkProc) : LibC::UInt
+  fun new_kind = GC_new_kind(free_list : FreeList*, mark_descriptor_template : Word, add_size_to_descriptor : Int, clear_new_objects : Int) : Kind
+  fun generic_malloc = GC_generic_malloc(size : SizeT, kind : Kind) : Void*
+  fun get_kind_and_size = GC_get_kind_and_size(obj : Void*, psize : SizeT*) : Kind
+
+  fun set_mark_bit = GC_set_mark_bit(ptr : Void*) : Void
+  fun is_marked = GC_is_marked(ptr : Void*) : Int
+
   {% unless flag?(:win32) %}
     # Boehm GC requires to use GC_pthread_create and GC_pthread_join instead of pthread_create and pthread_join
     fun pthread_create = GC_pthread_create(thread : LibC::PthreadT*, attr : LibC::PthreadAttrT*, start : Void* -> Void*, arg : Void*) : LibC::Int
@@ -84,6 +102,11 @@ module GC
   # :nodoc:
   def self.realloc(ptr : Void*, size : LibC::SizeT) : Void*
     LibGC.realloc(ptr, size)
+  end
+
+  # :nodoc:
+  def self.malloc_array(t : T.class) forall T
+    LibGC.generic_malloc(LibC::SizeT.new(instance_sizeof(Array(T))), array_kind)
   end
 
   def self.init
@@ -144,6 +167,34 @@ module GC
 
   def self.is_heap_ptr(pointer : Void*)
     LibGC.is_heap_ptr(pointer) != 0
+  end
+
+  @@array_kind : LibGC::Kind?
+
+  # :nodoc:
+  private def self.array_kind
+    @@array_kind ||= begin
+      array_free_list = LibGC.new_free_list
+      proc = LibGC.new_proc(->(addr : LibGC::Word*, mark_stack_ptr : LibGC::MsEntry*, mark_stack_limit : LibGC::MsEntry*, env : LibGC::Word) {
+        typed_addr = addr.as(Pointer({Int32, Int32, Int32, Array::Buffer(UInt8)}))
+        size = typed_addr.value[1]
+        element_size = typed_addr.value[2]
+        buffer = typed_addr.value[3]
+
+        first_elem = buffer.data
+        last_elem = buffer.data + (size * element_size)
+
+        LibGC.set_mark_bit(buffer.as(Void*))
+        LibGC.push_all_eager(first_elem, last_elem)
+
+        mark_stack_ptr
+      })
+      LibGC.new_kind(array_free_list, make_proc(proc, 0), 0, 1)
+    end
+  end
+
+  private def self.make_proc(proc_index, env)
+    (((env << LibGC::LOG_MAX_MARK_PROCS) | proc_index) << LibGC::DS_TAG_BITS) | LibGC::DS_PROC
   end
 
   def self.stats
