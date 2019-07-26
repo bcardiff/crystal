@@ -504,6 +504,7 @@ class Array(T)
     check_index_out_of_bounds(index)
     _self = self.snapshot
     index = _self.check_index_out_of_bounds index
+
     _self.data[index] = value
   end
 
@@ -528,7 +529,6 @@ class Array(T)
     raise ArgumentError.new "Negative count: #{count}" if count < 0
 
     check_index_out_of_bounds index
-
     _self = self.snapshot
     index = _self.check_index_out_of_bounds index
 
@@ -538,7 +538,7 @@ class Array(T)
     when 0
       insert index, value
     when 1
-      _self[index] = value
+      _self.data[index] = value
     else
       diff = count - 1
       (_self.data + index + 1).move_from(_self.data + index + count, _self.size - index - count)
@@ -587,8 +587,8 @@ class Array(T)
   # ```
   def []=(index : Int, count : Int, values : Array(T))
     raise ArgumentError.new "Negative count: #{count}" if count < 0
-    check_index_out_of_bounds index
 
+    check_index_out_of_bounds index
     _self = self.snapshot
     index = _self.check_index_out_of_bounds index
     _values = values.snapshot
@@ -850,14 +850,12 @@ class Array(T)
   # ```
   def delete_at(index : Int)
     check_index_out_of_bounds index
-
     _self = self.snapshot
     index = _self.check_index_out_of_bounds index
 
-    ptr = _self.data
-    elem = ptr[index]
-    (ptr + index).move_from(ptr + index + 1, _self.size - index - 1)
-    (ptr + _self.size).clear # TODO REMOVE
+    elem = _self.data[index]
+    (_self.data + index).move_from(_self.data + index + 1, _self.size - index - 1)
+    (_self.data + _self.size).clear # TODO REMOVE
     set_size_and_buffer(_self.size - 1, _self.buffer)
     elem
   end
@@ -1185,17 +1183,16 @@ class Array(T)
   # and y being the last matching element, or nil
   private def internal_delete
     _self = self.snapshot
-    ptr = _self.data
     i1 = 0
     i2 = 0
     match = nil
     while i1 < _self.size
-      e = ptr[i1]
+      e = _self.data[i1]
       if yield e
         match = e
       else
         if i1 != i2
-          ptr[i2] = e
+          _self.data[i2] = e
         end
         i2 += 1
       end
@@ -1205,7 +1202,7 @@ class Array(T)
 
     if i2 != i1
       count = i1 - i2
-      (ptr + _self.size).clear(count) # TODO remove
+      (_self.data + _self.size).clear(count) # TODO remove
       set_size_and_buffer(_self.size - count, _self.buffer)
       {self, match}
     else
@@ -1216,8 +1213,7 @@ class Array(T)
   # Optimized version of `Enumerable#map_with_index`.
   def map_with_index(&block : T, Int32 -> U) forall U
     _self = self.snapshot
-    ptr = _self.data
-    Array(U).new(_self.size) { |i| yield ptr[i], i }
+    Array(U).new(_self.size) { |i| yield _self.data[i], i }
   end
 
   # Like `map_with_index`, but mutates `self` instead of allocating a new object.
@@ -1576,7 +1572,7 @@ class Array(T)
       yield
     else
       new_size = _self.size - 1
-      value = _self[new_size]
+      value = _self.data[new_size]
       set_size_and_buffer(new_size, _self.buffer)
       value
     end
@@ -1605,11 +1601,10 @@ class Array(T)
     _self = self.snapshot
 
     n = Math.min(n, _self.size)
-    ptr = _self.data
-    ary = Array(T).new(n) { |i| ptr[_self.size - n + i] }
+    ary = Array(T).new(n) { |i| _self.data[_self.size - n + i] }
 
     new_size = @size - n
-    (ptr + new_size).clear(n) # TODO remove
+    (_self.data + new_size).clear(n) # TODO remove
     set_size_and_buffer(new_size, _self.buffer)
 
     ary
@@ -1666,9 +1661,8 @@ class Array(T)
     new_size = _self.size + values.size
     new_buffer = _self.buffer.ensure_capacity(new_size)
 
-    ptr = new_buffer.data
     values.each_with_index do |value, i|
-      ptr[_self.size + i] = value
+      new_buffer.data[_self.size + i] = value
     end
 
     set_size_and_buffer(new_size, new_buffer)
@@ -1710,15 +1704,14 @@ class Array(T)
     return self if _self.size == 0
     n %= _self.size
     return self if n == 0
-    ptr = _self.data
     if n <= _self.size // 2
       tmp = _self[0..n]
-      ptr.move_from(ptr + n, size - n)
-      (ptr + size - n).copy_from(tmp.data, n)
+      _self.data.move_from(_self.data + n, size - n)
+      (_self.data + size - n).copy_from(tmp.data, n)
     else
       tmp = _self[n..-1]
-      (ptr + size - n).move_from(ptr, n)
-      ptr.copy_from(tmp.data, size - n)
+      (_self.data + size - n).move_from(_self.data, n)
+      _self.data.copy_from(tmp.data, size - n)
     end
     self
   end
@@ -1793,8 +1786,9 @@ class Array(T)
       yield
     else
       value = _self.data[0]
-      @size -= 1
-      _self.data.move_from(_self.data + 1, @size)
+      new_size = _self.size - 1
+      _self.data.move_from(_self.data + 1, new_size)
+      set_size_and_buffer(new_size, _self.buffer)
       (_self.data + @size).clear # TODO remove
       value
     end
@@ -2122,10 +2116,6 @@ class Array(T)
     end
 
     set_size_and_buffer(new_size, _self.buffer)
-
-    # clearing a total of removed items from new_size
-    # si safe because old_size = new_size + removed < original
-    # capaticy of the buffer. And buffer can only grow.
     (@buffer.data + new_size).clear(removed) # TODO remove
 
     self
@@ -2157,11 +2147,10 @@ class Array(T)
     new_size = _self.size + values.size
     new_buffer = _self.buffer.ensure_capacity(new_size)
     move_value = values.size
-    ptr = new_buffer.data
-    ptr.move_to(ptr + move_value, _self.size)
+    new_buffer.data.move_to(new_buffer.data + move_value, _self.size)
 
     values.each_with_index do |value, i|
-      ptr[i] = value
+      new_buffer.data[i] = value
     end
     set_size_and_buffer new_size, new_buffer
     self
