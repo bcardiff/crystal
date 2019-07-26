@@ -44,6 +44,7 @@ lib LibGC
   fun set_push_other_roots = GC_set_push_other_roots(proc : ->)
   fun get_push_other_roots = GC_get_push_other_roots : ->
 
+  fun push_all = GC_push_all(bottom : Void*, top : Void*)
   fun push_all_eager = GC_push_all_eager(bottom : Void*, top : Void*)
 
   {% if flag?(:preview_mt) %}
@@ -77,8 +78,15 @@ lib LibGC
   fun generic_malloc = GC_generic_malloc(size : SizeT, kind : Kind) : Void*
   fun get_kind_and_size = GC_get_kind_and_size(obj : Void*, psize : SizeT*) : Kind
 
-  fun set_mark_bit = GC_set_mark_bit(ptr : Void*) : Void
+  fun set_mark_bit = GC_set_mark_bit(ptr : Void*) : Void*
   fun is_marked = GC_is_marked(ptr : Void*) : Int
+  fun mark_and_push = GC_mark_and_push(obj : Void*, msp : MsEntry*, msl : MsEntry*, src : Void**) : MsEntry*
+
+  $least_plausible_heap_addr = GC_least_plausible_heap_addr : Void*
+  $greatest_plausible_heap_addr = GC_greatest_plausible_heap_addr : Void*
+
+  type FnType = Void* -> Void*
+  fun call_with_alloc_lock = GC_call_with_alloc_lock(fn : FnType, client_data : Void*) : Void*
 
   {% unless flag?(:win32) %}
     # Boehm GC requires to use GC_pthread_create and GC_pthread_join instead of pthread_create and pthread_join
@@ -86,6 +94,15 @@ lib LibGC
     fun pthread_join = GC_pthread_join(thread : LibC::PthreadT, value : Void**) : LibC::Int
     fun pthread_detach = GC_pthread_detach(thread : LibC::PthreadT) : LibC::Int
   {% end %}
+end
+
+private def maybe_mark_and_push(obj, msp, lim, src)
+  # Port of gc_mark.h GC_MARK_AND_PUSH macro
+  if obj >= LibGC.least_plausible_heap_addr && obj <= LibGC.greatest_plausible_heap_addr
+    LibGC.mark_and_push(obj, msp, lim, src)
+  else
+    msp
+  end
 end
 
 module GC
@@ -178,16 +195,29 @@ module GC
     @@array_kind ||= begin
       array_free_list = LibGC.new_free_list
       proc = LibGC.new_proc(->(addr : LibGC::Word*, mark_stack_ptr : LibGC::MsEntry*, mark_stack_limit : LibGC::MsEntry*, env : LibGC::Word) {
-        typed_addr = addr.as(Pointer({Int32, Int32, Int32, Array::Buffer(UInt8)}))
+        array_addr = addr
+        # TODO check if env == 1 (debug allocator) and use array_addr = GC_USR_PTR_FROM_BASE(addr)
+
+        typed_addr = array_addr.as(Pointer({Int32, Int32, Int32, Array::Buffer(UInt8)}))
         size = typed_addr.value[1]
         element_size = typed_addr.value[2]
         buffer = typed_addr.value[3]
 
-        first_elem = buffer.data
-        last_elem = buffer.data + (size * element_size)
+        # Prevent the buffer itself of being collected
+        # LibGC.set_mark_bit(buffer.as(Void*))
+        LibGC.call_with_alloc_lock(->LibGC.set_mark_bit, buffer.as(Void*))
 
-        LibGC.set_mark_bit(buffer.as(Void*))
-        LibGC.push_all_eager(first_elem, last_elem)
+        # Prevent all potential pointers from being collected (manual iterate)
+        ptr = buffer.data.as(Void**)
+        (size * element_size // sizeof(Void*)).times do |i|
+          mark_stack_ptr = maybe_mark_and_push(ptr[i], mark_stack_ptr, mark_stack_limit, Pointer(Pointer(Void)).null)
+        end
+
+        # Prevent all potential pointers from being collected (mamem range iterate)
+        # first_elem = buffer.data
+        # last_elem = buffer.data + (size * element_size)
+        # LibGC.push_all(first_elem, last_elem)
+        # LibGC.push_all_eager(first_elem, last_elem)
 
         mark_stack_ptr
       })
