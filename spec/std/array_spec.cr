@@ -88,24 +88,84 @@ describe "Array" do
       Collected.finalized.should eq(10)
     end
 
+    it "#clear does not clear memory" do
+      a = [42]
+      a.clear
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    it "#delete_at(index : Int) does not clear memory" do
+      a = [42]
+      a.delete_at(0)
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    it "#delete_at(index : Int, count : Int) does not clear memory" do
+      a = [42, 43, 44, 45]
+      a.delete_at(1, 2)
+      a.unsafe_fetch(1).should eq(45)
+      a.unsafe_fetch(2).should eq(44)
+      a.unsafe_fetch(3).should eq(45)
+    end
+
     it "#pop does not clear memory" do
       a = [42]
       a.pop
       a.unsafe_fetch(0).should eq(42)
     end
 
-    # TODO removing items does not clear memory
-    # def []=(index : Int, count : Int, value : T)
-    # def []=(index : Int, count : Int, values : Array(T))
-    # def clear
-    # def delete_at(index : Int)
-    # def delete_at(index : Int, count : Int)
-    # `reject!` and `delete` (via internal_delete)
-    # def pop # actually not needed but good to test
-    # def pop(n : Int)
-    # def shift
-    # def shift(n : Int)
-    # def uniq!
+    it "#pop(n : Int) does not clear memory" do
+      a = [42]
+      a.pop(1)
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    it "#shift does not clear memory" do
+      a = [42]
+      a.shift
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    it "#shift(n : Int) does not clear memory" do
+      a = [42]
+      a.shift(1)
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    it "#reject! does not clear memory" do
+      a = [42, 43]
+      a.reject! { |x| x == 42 }
+      a.unsafe_fetch(1).should eq(43)
+    end
+
+    it "#delete does not clear memory" do
+      a = [42, 43]
+      a.delete(42)
+      a.unsafe_fetch(1).should eq(43)
+    end
+
+    it "#[]=(index : Int, count : Int, value : T) does not clear memory" do
+      a = [1, 2, 3]
+      a[0, 2] = 8
+      a.unsafe_fetch(1).should eq(3)
+      a.unsafe_fetch(2).should eq(3)
+    end
+
+    it "#[]=(index : Int, count : Int, values : Array(T)) does not clear memory" do
+      a = [1, 2, 3]
+      a[0, 2] = [] of Int32
+      a.unsafe_fetch(0).should eq(3)
+      a.unsafe_fetch(1).should eq(2)
+      a.unsafe_fetch(2).should eq(3)
+    end
+
+    it "#uniq! does not clear memory" do
+      a = [1, 1, 2, 2, 3, 3]
+      a.uniq!
+      a.unsafe_fetch(3).should eq(2)
+      a.unsafe_fetch(4).should eq(3)
+      a.unsafe_fetch(5).should eq(3)
+    end
   end
 
   describe "==" do

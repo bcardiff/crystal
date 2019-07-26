@@ -542,7 +542,6 @@ class Array(T)
     else
       diff = count - 1
       (_self.data + index + 1).move_from(_self.data + index + count, _self.size - index - count)
-      (_self.data + _self.size - diff).clear(diff) # TODO remove clear
       _self[index] = value
 
       set_size_and_buffer(_self.size - diff, _self.buffer)
@@ -604,7 +603,6 @@ class Array(T)
       diff = -diff
       (_self.data + index).copy_from(_values.data, _values.size)
       (_self.data + index + _values.size).move_from(_self.data + index + count, _self.size - index - count)
-      (_self.data + _self.size - diff).clear(diff) # TODO remove
       set_size_and_buffer(_self.size - diff, _self.buffer)
     else
       # Need to grow
@@ -727,7 +725,6 @@ class Array(T)
   def clear
     # An invariant of the array is that the buffer is never
     # shrinked, not zeroed.
-    @buffer.data.clear(@size) # TODO remove
     @size = 0
     self
   end
@@ -855,7 +852,6 @@ class Array(T)
 
     elem = _self.data[index]
     (_self.data + index).move_from(_self.data + index + 1, _self.size - index - 1)
-    (_self.data + _self.size).clear # TODO REMOVE
     set_size_and_buffer(_self.size - 1, _self.buffer)
     elem
   end
@@ -891,7 +887,6 @@ class Array(T)
     _self = self.snapshot
     count = index + count <= _self.size ? count : _self.size - index
     (_self.data + index).move_from(_self.data + index + count, _self.size - index - count)
-    (_self.data + _self.size).clear(count) # TODO REMOVE
     set_size_and_buffer(_self.size - count, _self.buffer)
     val
   end
@@ -1202,7 +1197,6 @@ class Array(T)
 
     if i2 != i1
       count = i1 - i2
-      (_self.data + _self.size).clear(count) # TODO remove
       set_size_and_buffer(_self.size - count, _self.buffer)
       {self, match}
     else
@@ -1604,7 +1598,6 @@ class Array(T)
     ary = Array(T).new(n) { |i| _self.data[_self.size - n + i] }
 
     new_size = @size - n
-    (_self.data + new_size).clear(n) # TODO remove
     set_size_and_buffer(new_size, _self.buffer)
 
     ary
@@ -1789,7 +1782,6 @@ class Array(T)
       new_size = _self.size - 1
       _self.data.move_from(_self.data + 1, new_size)
       set_size_and_buffer(new_size, _self.buffer)
-      (_self.data + @size).clear # TODO remove
       value
     end
   end
@@ -1820,7 +1812,6 @@ class Array(T)
 
     _self.data.move_from(_self.data + n, _self.size - n)
     set_size_and_buffer(_self.size - n, _self.buffer)
-    (_self.data + @size).clear(n) # TODO remove
 
     ary
   end
@@ -2116,7 +2107,6 @@ class Array(T)
     end
 
     set_size_and_buffer(new_size, _self.buffer)
-    (@buffer.data + new_size).clear(removed) # TODO remove
 
     self
   end
