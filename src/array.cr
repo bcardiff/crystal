@@ -83,9 +83,87 @@ class Array(T)
       end
     end
 
+    def double_capacity
+      realloc(@capacity == 0 ? 3 : (@capacity * 2))
+    end
+
     @[AlwaysInline]
     def data : U*
       Pointer(U).new(object_id + sizeof(Buffer(U)))
+    end
+  end
+
+  # :nodoc:
+  struct Snapshot(U)
+    getter size : Int32
+    getter buffer : Buffer(U)
+    getter data : U*
+
+    include Indexable(U)
+
+    def initialize(@size : Int32, @buffer : Buffer(U))
+      @data = @buffer.data
+    end
+
+    def ensure_free_capacity
+      if @size == @buffer.capacity
+        Snapshot.new(@size, @buffer.double_capacity)
+      else
+        self
+      end
+    end
+
+    @[AlwaysInline]
+    def unsafe_fetch(index : Int)
+      @data[index]
+    end
+
+    @[AlwaysInline]
+    def []=(index : Int, value : U)
+      index = check_index_out_of_bounds index
+      @data[index] = value
+    end
+
+    def [](range : Range)
+      self[*Indexable.range_to_index_and_count(range, size)]
+    end
+
+    def [](start : Int, count : Int)
+      self[start, count]? || raise IndexError.new
+    end
+
+    def []?(start : Int, count : Int)
+      raise ArgumentError.new "Negative count: #{count}" if count < 0
+      return Snapshot.new(0, Buffer(U).new(0)) if start == @size
+
+      start += @size if start < 0
+
+      if 0 <= start <= @size
+        return Snapshot.new(0, Buffer(U).new(0)) if count == 0
+
+        count = Math.min(count, @size - start)
+
+        buffer = Buffer(U).new(count)
+        buffer.data.copy_from(self.data + start, count)
+        Snapshot.new(0, buffer)
+      end
+    end
+
+    def check_index_out_of_bounds(index)
+      check_index_out_of_bounds(index) { raise IndexError.new }
+    end
+
+    def to_lookup_hash
+      to_lookup_hash { |elem| elem }
+    end
+
+    def to_lookup_hash(&block : U -> S) forall S
+      each_with_object(Hash(S, U).new) do |o, h|
+        key = yield o
+        unless h.has_key?(key)
+          h[key] = o
+        end
+      end
     end
   end
 
@@ -162,6 +240,47 @@ class Array(T)
     blob
   end
 
+  # :nodoc:
+  protected def snapshot
+    # Buffer capacity can only increase and
+    # is never zeroed so the safe way is to
+    # read _first_ the size and then the buffer
+    size = @size
+    buffer = @buffer
+
+    Snapshot(T).new(size, buffer)
+  end
+
+  # :nodoc:
+  def self.from_snapshot(s : Snapshot(T))
+    Array(T).build(s.buffer.capacity) do |buffer|
+      buffer.copy_from(s.data, s.size)
+      s.size
+    end
+  end
+
+  # :nodoc:
+  @[AlwaysInline]
+  private def set_size_and_buffer(size, buffer)
+    # Setting the size and buffers needs to
+    # enforce the invariant that size <= buffer.capacity
+    # and every point in the execution.
+    # It is assumed that:
+    #
+    #   * @buffer.capacity <= buffer.capacity
+    #   * @size <= @buffer.capacity
+    #   * size <= buffer.capacity
+
+    @size = Math.min(size, @buffer.capacity)
+    @buffer = buffer
+    @size = size
+  end
+
+  # :nodoc:
+  protected def size=(size : Int)
+    @size = size.to_i
+  end
+
   # Creates a new `Array` of the given *size* and invokes the given block once
   # for each index of `self`, assigning the block's value in that index.
   #
@@ -194,9 +313,8 @@ class Array(T)
   # end
   # ```
   def self.build(capacity : Int) : self
-    # TODO review MT
     ary = Array(T).new(capacity)
-    ary.size = (yield ary.to_unsafe).to_i
+    ary.size = (yield ary.@buffer.data).to_i
     ary
   end
 
@@ -234,13 +352,15 @@ class Array(T)
   # [1, 2] <=> [1, 2] # => 0
   # ```
   def <=>(other : Array)
-    min_size = Math.min(size, other.size)
-    ptr = @buffer.data
+    _other = other.snapshot
+    _self = self.snapshot
+
+    min_size = Math.min(_self.size, _other.size)
     0.upto(min_size - 1) do |i|
-      n = ptr[i] <=> other.to_unsafe[i]
+      n = _self.unsafe_fetch(i) <=> _other.unsafe_fetch(i)
       return n if n != 0
     end
-    size <=> other.size
+    _self.size <=> _other.size
   end
 
   # Set intersection: returns a new `Array` containing elements common to `self`
@@ -253,20 +373,20 @@ class Array(T)
   #
   # See also: `#uniq`.
   def &(other : Array(U)) forall U
-    return Array(T).new if self.empty? || other.empty?
+    _self = self.snapshot
+    _other = other.snapshot
 
-    hash = other.to_lookup_hash
+    return Array(T).new if _self.empty? || _other.empty?
+
+    hash = _other.to_lookup_hash
     hash_size = hash.size
-    Array(T).build(Math.min(size, other.size)) do |buffer|
+    Array(T).build(Math.min(_self.size, _other.size)) do |buffer|
       i = 0
-      each do |obj|
+      _self.each do |obj|
         hash.delete(obj)
         new_hash_size = hash.size
         if hash_size != new_hash_size
           hash_size = new_hash_size
-          # TODO MT-Safe if self's size is increased while
-          # doing this operation the buffer[i] could've go
-          # out of bounds.
           buffer[i] = obj
           i += 1
         end
@@ -284,20 +404,20 @@ class Array(T)
   #
   # See also: `#uniq`.
   def |(other : Array(U)) forall U
-    Array(T | U).build(size + other.size) do |buffer|
+    _self = self.snapshot
+    _other = other.snapshot
+
+    Array(T | U).build(_self.size + _other.size) do |buffer|
       hash = Hash(T, Bool).new
       i = 0
-      # TODO MT-Safe if other or self's size is increased while
-      # doing this operation the buffer[i] could've go
-      # out of bounds.
-      each do |obj|
+      _self.each do |obj|
         unless hash.has_key?(obj)
           buffer[i] = obj
           hash[obj] = true
           i += 1
         end
       end
-      other.each do |obj|
+      _other.each do |obj|
         unless hash.has_key?(obj)
           buffer[i] = obj
           hash[obj] = true
@@ -316,12 +436,12 @@ class Array(T)
   # [1, 2] + [2, 3] # => [1,2,2,3]
   # ```
   def +(other : Array(U)) forall U
-    _size = size
-    _other_size = other.size
-    new_size = _size + _other_size
+    _self = self.snapshot
+    _other = other.snapshot
+    new_size = _self.size + _other.size
     Array(T | U).build(new_size) do |buffer|
-      buffer.copy_from(@buffer.data, _size)
-      (buffer + _size).copy_from(other.to_unsafe, _other_size)
+      buffer.copy_from(_self.data, _self.size)
+      (buffer + _self.size).copy_from(_other.data, _other.size)
       new_size
     end
   end
@@ -333,8 +453,9 @@ class Array(T)
   # [1, 2, 3] - [2, 1] # => [3]
   # ```
   def -(other : Array(U)) forall U
-    ary = Array(T).new(Math.max(size - other.size, 0))
-    hash = other.to_lookup_hash
+    _other = other.snapshot
+    ary = Array(T).new(Math.max(size - _other.size, 0))
+    hash = _other.to_lookup_hash
     each do |obj|
       ary << obj unless hash.has_key?(obj)
     end
@@ -378,8 +499,12 @@ class Array(T)
   # ```
   @[AlwaysInline]
   def []=(index : Int, value : T)
-    index = check_index_out_of_bounds index
-    @buffer.data[index] = value
+    # The bound check is performed in array level
+    # to avoid raising always an Array::Snapshot exception.
+    check_index_out_of_bounds(index)
+    _self = self.snapshot
+    index = _self.check_index_out_of_bounds index
+    _self.data[index] = value
   end
 
   # Replaces a subrange with a single value. All elements in the range
@@ -402,20 +527,25 @@ class Array(T)
   def []=(index : Int, count : Int, value : T)
     raise ArgumentError.new "Negative count: #{count}" if count < 0
 
-    index = check_index_out_of_bounds index
-    count = index + count <= size ? count : size - index
+    check_index_out_of_bounds index
+
+    _self = self.snapshot
+    index = _self.check_index_out_of_bounds index
+
+    count = index + count <= _self.size ? count : _self.size - index
 
     case count
     when 0
       insert index, value
     when 1
-      @buffer.data[index] = value
+      _self[index] = value
     else
       diff = count - 1
-      (@buffer.data + index + 1).move_from(@buffer.data + index + count, size - index - count)
-      (@buffer.data + @size - diff).clear(diff)
-      @buffer.data[index] = value
-      @size -= diff
+      (_self.data + index + 1).move_from(_self.data + index + count, _self.size - index - count)
+      (_self.data + _self.size - diff).clear(diff) # TODO remove clear
+      _self[index] = value
+
+      set_size_and_buffer(_self.size - diff, _self.buffer)
     end
 
     value
@@ -457,27 +587,31 @@ class Array(T)
   # ```
   def []=(index : Int, count : Int, values : Array(T))
     raise ArgumentError.new "Negative count: #{count}" if count < 0
+    check_index_out_of_bounds index
 
-    index = check_index_out_of_bounds index
-    count = index + count <= size ? count : size - index
-    diff = values.size - count
+    _self = self.snapshot
+    index = _self.check_index_out_of_bounds index
+    _values = values.snapshot
+
+    count = index + count <= _self.size ? count : _self.size - index
+    diff = _values.size - count
 
     if diff == 0
       # Replace values directly
-      (@buffer.data + index).copy_from(values.to_unsafe, values.size)
+      (_self.data + index).copy_from(_values.data, _values.size)
     elsif diff < 0
       # Need to shrink
       diff = -diff
-      (@buffer.data + index).copy_from(values.to_unsafe, values.size)
-      (@buffer.data + index + values.size).move_from(@buffer.data + index + count, size - index - count)
-      (@buffer.data + @size - diff).clear(diff)
-      @size -= diff
+      (_self.data + index).copy_from(_values.data, _values.size)
+      (_self.data + index + _values.size).move_from(_self.data + index + count, _self.size - index - count)
+      (_self.data + _self.size - diff).clear(diff) # TODO remove
+      set_size_and_buffer(_self.size - diff, _self.buffer)
     else
       # Need to grow
-      @buffer = @buffer.realloc(Math.pw2ceil(@size + diff))
-      (@buffer.data + index + values.size).move_from(@buffer.data + index + count, size - index - count)
-      (@buffer.data + index).copy_from(values.to_unsafe, values.size)
-      @size += diff
+      new_buffer = _self.buffer.ensure_capacity(_self.size + diff)
+      (new_buffer.data + index + _values.size).move_from(new_buffer.data + index + count, _self.size - index - count)
+      (new_buffer.data + index).copy_from(_values.data, _values.size)
+      set_size_and_buffer(_self.size + diff, new_buffer)
     end
 
     values
@@ -562,17 +696,18 @@ class Array(T)
   # Like `#[Int, Int]` but returns `nil` if the *start* index is out of range.
   def []?(start : Int, count : Int)
     raise ArgumentError.new "Negative count: #{count}" if count < 0
-    return Array(T).new if start == size
+    _self = self.snapshot
+    return Array(T).new if start == _self.size
 
-    start += size if start < 0
+    start += _self.size if start < 0
 
-    if 0 <= start <= size
+    if 0 <= start <= _self.size
       return Array(T).new if count == 0
 
-      count = Math.min(count, size - start)
+      count = Math.min(count, _self.size - start)
 
       Array(T).build(count) do |buffer|
-        buffer.copy_from(@buffer.data + start, count)
+        buffer.copy_from(_self.data + start, count)
         count
       end
     end
@@ -590,7 +725,9 @@ class Array(T)
   # a.clear # => []
   # ```
   def clear
-    @buffer.data.clear(@size)
+    # An invariant of the array is that the buffer is never
+    # shrinked, not zeroed.
+    @buffer.data.clear(@size) # TODO remove
     @size = 0
     self
   end
@@ -612,8 +749,8 @@ class Array(T)
   # ary2 # => [[1, 2], [3, 4], [7, 8]]
   # ```
   def clone
-    ptr = @buffer.data
-    Array(T).new(size) { |i| ptr[i].clone.as(T) }
+    _self = self.snapshot
+    Array(T).new(_self.size) { |i| _self.data[i].clone.as(T) }
   end
 
   # Returns a copy of `self` with all `nil` elements removed.
@@ -644,31 +781,23 @@ class Array(T)
   # ary # => ["a", "b", "c", "d"]
   # ```
   def concat(other : Array)
-    other_size = other.size
-    new_size = size + other_size
-    @buffer = @buffer.ensure_capacity(new_size)
-
-    # TODO MT-Safe if other size is shrinked while doing the operation
-    # we could be allowing access to uninitialized T at the end of the array.
-    (@buffer.data + @size).copy_from(other.to_unsafe, other_size)
-    @size = new_size
-
-    self
+    concat(other.snapshot)
   end
 
   # ditto
   def concat(other : Enumerable)
-    left_before_resize = @buffer.capacity - @size
-    len = @size
-    buf = @buffer.data + len
+    _self = self.snapshot
+
+    len = _self.size
+    left_before_resize = _self.buffer.capacity - len
+    buf = _self.buffer.data + len
+
     other.each do |elem|
       if left_before_resize == 0
-        # TODO MT-Safe this could lead to large array
-        # since the double_capacity is not constrained
-        # with respect the actual capacity.
-        double_capacity
-        left_before_resize = @buffer.capacity - len
-        buf = @buffer.data + len
+        _self = Snapshot(T).new(_self.size, _self.buffer.double_capacity)
+
+        left_before_resize = _self.buffer.capacity - len
+        buf = _self.buffer.data + len
       end
       buf.value = elem
       buf += 1
@@ -676,7 +805,19 @@ class Array(T)
       left_before_resize -= 1
     end
 
-    @size = len
+    set_size_and_buffer(len, _self.buffer)
+
+    self
+  end
+
+  private def concat(other : Snapshot(T))
+    _self = self.snapshot
+    new_size = _self.size + other.size
+    new_buffer = _self.buffer.ensure_capacity(new_size)
+
+    (new_buffer.data + _self.size).copy_from(other.data, other.size)
+
+    set_size_and_buffer(new_size, new_buffer)
 
     self
   end
@@ -708,13 +849,16 @@ class Array(T)
   # a.delete_at(99) # raises IndexError
   # ```
   def delete_at(index : Int)
-    index = check_index_out_of_bounds index
+    check_index_out_of_bounds index
 
-    ptr = @buffer.data
+    _self = self.snapshot
+    index = _self.check_index_out_of_bounds index
+
+    ptr = _self.data
     elem = ptr[index]
-    (ptr + index).move_from(ptr + index + 1, size - index - 1)
-    @size -= 1
-    (ptr + @size).clear
+    (ptr + index).move_from(ptr + index + 1, _self.size - index - 1)
+    (ptr + _self.size).clear # TODO REMOVE
+    set_size_and_buffer(_self.size - 1, _self.buffer)
     elem
   end
 
@@ -746,11 +890,11 @@ class Array(T)
   # ```
   def delete_at(index : Int, count : Int)
     val = self[index, count]
-    count = index + count <= size ? count : size - index
-    ptr = @buffer.data
-    (ptr + index).move_from(ptr + index + count, size - index - count)
-    @size -= count
-    (ptr + @size).clear(count)
+    _self = self.snapshot
+    count = index + count <= _self.size ? count : _self.size - index
+    (_self.data + index).move_from(_self.data + index + count, _self.size - index - count)
+    (_self.data + _self.size).clear(count) # TODO REMOVE
+    set_size_and_buffer(_self.size - count, _self.buffer)
     val
   end
 
@@ -771,10 +915,7 @@ class Array(T)
   # ary2 # => [[5, 2], [3, 4], [7, 8]]
   # ```
   def dup
-    Array(T).build(@buffer.capacity) do |buffer|
-      buffer.copy_from(@buffer.data, size)
-      size
-    end
+    Array.from_snapshot(self.snapshot)
   end
 
   # Yields each index of `self` to the given block and then assigns
@@ -785,8 +926,8 @@ class Array(T)
   # a.fill { |i| i * i } # => [0, 1, 4, 9]
   # ```
   def fill
-    ptr = @buffer.data
-    each_index { |i| ptr[i] = yield i }
+    _self = self.snapshot
+    _self.each_index { |i| _self.data[i] = yield i }
 
     self
   end
@@ -803,12 +944,13 @@ class Array(T)
   # a.fill(2) { |i| i * i } # => [1, 2, 4, 9]
   # ```
   def fill(from : Int)
-    from += size if from < 0
+    _self = self.snapshot
 
-    raise IndexError.new unless 0 <= from < size
+    from += _self.size if from < 0
 
-    ptr = @buffer.data
-    from.upto(size - 1) { |i| ptr[i] = yield i }
+    raise IndexError.new unless 0 <= from < _self.size
+
+    from.upto(_self.size - 1) { |i| _self.data[i] = yield i }
 
     self
   end
@@ -829,12 +971,12 @@ class Array(T)
   def fill(from : Int, count : Int)
     return self if count <= 0
 
-    from += size if from < 0
+    _self = self.snapshot
+    from += _self.size if from < 0
 
-    raise IndexError.new unless 0 <= from < size && from + count <= size
+    raise IndexError.new unless 0 <= from < _self.size && from + count <= _self.size
 
-    ptr = @buffer.data
-    from.upto(from + count - 1) { |i| ptr[i] = yield i }
+    from.upto(from + count - 1) { |i| _self.data[i] = yield i }
 
     self
   end
@@ -921,20 +1063,20 @@ class Array(T)
   # a.insert(-1, "z") # => ["x", "a", "y", "b", "c", "z"]
   # ```
   def insert(index : Int, object : T)
-    check_needs_resize
+    _self = self.snapshot.ensure_free_capacity
 
     if index < 0
-      index += size + 1
+      index += _self.size + 1
     end
 
-    unless 0 <= index <= size
+    unless 0 <= index <= _self.size
       raise IndexError.new
     end
 
-    ptr = @buffer.data
-    (ptr + index + 1).move_from(ptr + index, size - index)
-    ptr[index] = object
-    @size += 1
+    (_self.data + index + 1).move_from(_self.data + index, size - index)
+    _self.data[index] = object
+
+    set_size_and_buffer(_self.size + 1, _self.buffer)
     self
   end
 
@@ -957,15 +1099,13 @@ class Array(T)
     end
   end
 
-  # :nodoc:
-  protected def size=(size : Int)
-    @size = size.to_i
-  end
+  # Since the buffer is only increased and never zeroed
+  # the default implementation of `Indexable#each` is already Thread-safe.
 
   # Optimized version of `Enumerable#map`.
   def map(&block : T -> U) forall U
-    ptr = @buffer.data
-    Array(U).new(size) { |i| yield ptr[i] }
+    _self = self.snapshot
+    Array(U).new(_self.size) { |i| yield _self.data[i] }
   end
 
   # Invokes the given block for each element of `self`, replacing the element
@@ -977,7 +1117,8 @@ class Array(T)
   # a # => [1, 4, 9]
   # ```
   def map!
-    @buffer.data.map!(size) { |e| yield e }
+    _self = self.snapshot
+    _self.data.map!(_self.size) { |e| yield e }
     self
   end
 
@@ -1043,12 +1184,12 @@ class Array(T)
   # with x being self/nil (modified, not modified)
   # and y being the last matching element, or nil
   private def internal_delete
-    _size = @size
-    ptr = @buffer.data
+    _self = self.snapshot
+    ptr = _self.data
     i1 = 0
     i2 = 0
     match = nil
-    while i1 < _size
+    while i1 < _self.size
       e = ptr[i1]
       if yield e
         match = e
@@ -1064,9 +1205,8 @@ class Array(T)
 
     if i2 != i1
       count = i1 - i2
-      _size -= count
-      @size = _size
-      (ptr + _size).clear(count)
+      (ptr + _self.size).clear(count) # TODO remove
+      set_size_and_buffer(_self.size - count, _self.buffer)
       {self, match}
     else
       {nil, match}
@@ -1075,13 +1215,15 @@ class Array(T)
 
   # Optimized version of `Enumerable#map_with_index`.
   def map_with_index(&block : T, Int32 -> U) forall U
-    ptr = @buffer.data
-    Array(U).new(size) { |i| yield ptr[i], i }
+    _self = self.snapshot
+    ptr = _self.data
+    Array(U).new(_self.size) { |i| yield ptr[i], i }
   end
 
   # Like `map_with_index`, but mutates `self` instead of allocating a new object.
   def map_with_index!(&block : (T, Int32) -> T)
-    to_unsafe.map_with_index!(size) { |e, i| yield e, i }
+    _self = self.snapshot
+    _self.data.map_with_index!(_self.size) { |e, i| yield e, i }
     self
   end
 
@@ -1096,9 +1238,10 @@ class Array(T)
   def skip(count : Int) : Array(T)
     raise ArgumentError.new("Attempt to skip negative size") if count < 0
 
-    new_size = Math.max(size - count, 0)
+    _self = self.snapshot
+    new_size = Math.max(_self.size - count, 0)
     Array(T).build(new_size) do |buffer|
-      buffer.copy_from(to_unsafe + count, new_size)
+      buffer.copy_from(_self.data + count, new_size)
       new_size
     end
   end
@@ -1427,13 +1570,14 @@ class Array(T)
   # a.pop { "Testing" } # => "Testing"
   # ```
   def pop
-    if @size == 0
+    _self = self.snapshot
+
+    if _self.size == 0
       yield
     else
-      @size -= 1
-      ptr = @buffer.data
-      value = ptr[@size]
-      # (ptr + @size).clear
+      new_size = _self.size - 1
+      value = _self[new_size]
+      set_size_and_buffer(new_size, _self.buffer)
       value
     end
   end
@@ -1458,12 +1602,15 @@ class Array(T)
       raise ArgumentError.new("Can't pop negative count")
     end
 
-    n = Math.min(n, @size)
-    ptr = @buffer.data
-    ary = Array(T).new(n) { |i| ptr[@size - n + i] }
+    _self = self.snapshot
 
-    @size -= n
-    (ptr + @size).clear(n)
+    n = Math.min(n, _self.size)
+    ptr = _self.data
+    ary = Array(T).new(n) { |i| ptr[_self.size - n + i] }
+
+    new_size = @size - n
+    (ptr + new_size).clear(n) # TODO remove
+    set_size_and_buffer(new_size, _self.buffer)
 
     ary
   end
@@ -1500,9 +1647,10 @@ class Array(T)
   # a.push(1)   # => ["a", "b", "c", 1]
   # ```
   def push(value : T)
-    check_needs_resize
-    @buffer.data[@size] = value
-    @size += 1
+    _self = self.snapshot.ensure_free_capacity
+    _self.data[_self.size] = value
+
+    set_size_and_buffer(_self.size + 1, _self.buffer)
     self
   end
 
@@ -1514,30 +1662,27 @@ class Array(T)
   # a.push("b", "c") # => ["a", "b", "c"]
   # ```
   def push(*values : T)
-    new_size = @size + values.size
-    @buffer = @buffer.ensure_capacity(new_size)
-    ptr = @buffer.data
+    _self = self.snapshot
+    new_size = _self.size + values.size
+    new_buffer = _self.buffer.ensure_capacity(new_size)
+
+    ptr = new_buffer.data
     values.each_with_index do |value, i|
-      ptr[@size + i] = value
+      ptr[_self.size + i] = value
     end
-    @size = new_size
+
+    set_size_and_buffer(new_size, new_buffer)
     self
   end
 
   def replace(other : Array)
-    # Size is grabbed first so we cab be sure that _other_ptr has data for at least that amount of data
-    # Note: it does not prevent access to uninitialized/cleared pointers.
-    _other_size = other.size
-    _other_ptr = other.to_unsafe
+    _self = self.snapshot
+    _other = other.snapshot
 
-    # In case self is accessed simultaneously we set the size to a safe lower bound
-    # until the copy of the buffer is done
-    @size = Math.min(_other_size, @size)
-    @buffer = @buffer.ensure_capacity(_other_size)
+    new_buffer = _self.buffer.ensure_capacity(_other.size)
+    new_buffer.data.copy_from(_other.data, _other.size)
 
-    @buffer.data.copy_from(_other_ptr, _other_size)
-    @size = _other_size
-
+    set_size_and_buffer(_other.size, new_buffer)
     self
   end
 
@@ -1548,42 +1693,44 @@ class Array(T)
   # a.reverse # => [3, 2, 1]
   # ```
   def reverse
-    ptr = @buffer.data
-    Array(T).new(size) { |i| ptr[size - i - 1] }
+    _self = self.snapshot
+    Array(T).new(_self.size) { |i| _self.data[_self.size - i - 1] }
   end
 
   # Reverses in-place all the elements of `self`.
   def reverse!
-    Slice.new(@buffer.data, size).reverse!
+    _self = self.snapshot
+    Slice.new(_self.data, _self.size).reverse!
     self
   end
 
   def rotate!(n = 1)
-    return self if size == 0
-    n %= size
+    _self = self.snapshot
+
+    return self if _self.size == 0
+    n %= _self.size
     return self if n == 0
-    ptr = @buffer.data
-    if n <= size // 2
-      tmp = self[0..n]
+    ptr = _self.data
+    if n <= _self.size // 2
+      tmp = _self[0..n]
       ptr.move_from(ptr + n, size - n)
-      (ptr + size - n).copy_from(tmp.to_unsafe, n)
+      (ptr + size - n).copy_from(tmp.data, n)
     else
-      tmp = self[n..-1]
+      tmp = _self[n..-1]
       (ptr + size - n).move_from(ptr, n)
-      ptr.copy_from(tmp.to_unsafe, size - n)
+      ptr.copy_from(tmp.data, size - n)
     end
     self
   end
 
   def rotate(n = 1)
-    # TODO review MT
-    return self if size == 0
-    n %= size
+    _self = self.snapshot
+    return self if _self.size == 0
+    n %= _self.size
     return self if n == 0
-    res = Array(T).new(size)
-    ptr = @buffer.data
-    res.to_unsafe.copy_from(ptr + n, size - n)
-    (res.to_unsafe + size - n).copy_from(ptr, n)
+    res = Array(T).new(_self.size)
+    res.to_unsafe.copy_from(_self.data + n, size - n)
+    (res.to_unsafe + size - n).copy_from(_self.data, n)
     res.size = size
     res
   end
@@ -1607,18 +1754,18 @@ class Array(T)
     when 1
       return [sample(random)] of T
     else
-      if n >= size
-        return dup.shuffle!(random)
+      _self = self.snapshot
+      if n >= _self.size
+        return Array.from_snapshot(_self).shuffle!(random)
       end
 
-      ptr = @buffer.data
-      ary = Array(T).new(n) { |i| ptr[i] }
+      ary = Array(T).new(n) { |i| _self.data[i] }
       buffer = ary.to_unsafe
 
       n.upto(size - 1) do |i|
         j = random.rand(i + 1)
         if j <= n
-          buffer[j] = ptr[i]
+          buffer[j] = _self.data[i]
         end
       end
       ary.shuffle!(random)
@@ -1640,14 +1787,15 @@ class Array(T)
   end
 
   def shift
-    if @size == 0
+    _self = self.snapshot
+
+    if _self.size == 0
       yield
     else
-      ptr = @buffer.data
-      value = ptr[0]
+      value = _self.data[0]
       @size -= 1
-      ptr.move_from(ptr + 1, @size)
-      (ptr + @size).clear
+      _self.data.move_from(_self.data + 1, @size)
+      (_self.data + @size).clear # TODO remove
       value
     end
   end
@@ -1672,13 +1820,13 @@ class Array(T)
       raise ArgumentError.new("Can't shift negative count")
     end
 
-    ptr = @buffer.data
-    n = Math.min(n, @size)
-    ary = Array(T).new(n) { |i| ptr[i] }
+    _self = self.snapshot
+    n = Math.min(n, _self.size)
+    ary = Array(T).new(n) { |i| _self.data[i] }
 
-    ptr.move_from(ptr + n, @size - n)
-    @size -= n
-    (ptr + @size).clear(n)
+    _self.data.move_from(_self.data + n, _self.size - n)
+    set_size_and_buffer(_self.size - n, _self.buffer)
+    (_self.data + @size).clear(n) # TODO remove
 
     ary
   end
@@ -1708,7 +1856,8 @@ class Array(T)
   # Modifies `self` by randomizing the order of elements in the collection
   # using the given *random* number generator. Returns `self`.
   def shuffle!(random = Random::DEFAULT)
-    @buffer.data.shuffle!(size, random)
+    _self = self.snapshot
+    _self.data.shuffle!(_self.size, random)
     self
   end
 
@@ -1755,7 +1904,8 @@ class Array(T)
   # a # => [1, 2, 3]
   # ```
   def sort! : Array(T)
-    Slice.new(to_unsafe, size).sort!
+    _self = self.snapshot
+    Slice.new(_self.data, _self.size).sort!
     self
   end
 
@@ -1777,7 +1927,8 @@ class Array(T)
       {% raise "expected block to return Int32 or Nil, not #{U}" %}
     {% end %}
 
-    Slice.new(to_unsafe, size).sort!(&block)
+    _self = self.snapshot
+    Slice.new(_self.data, _self.size).sort!(&block)
     self
   end
 
@@ -1806,9 +1957,12 @@ class Array(T)
   # ```
   def sort_by!(&block : T -> _) : Array(T)
     sorted = map { |e| {e, yield(e)} }.sort! { |x, y| x[1] <=> y[1] }
-    ptr = @buffer.data
-    @size.times do |i|
-      ptr[i] = sorted.to_unsafe[i][0]
+    _self = self.snapshot
+    # In case self is changed after the sort
+    # we copy only the amount of elements that it
+    # is know to be in both sorted and _self
+    Math.min(_self.size, sorted.size).times do |i|
+      _self.data[i] = sorted.to_unsafe[i][0]
     end
     self
   end
@@ -1825,14 +1979,15 @@ class Array(T)
   # a.swap(2, 3)  # => raises "Index out of bounds (IndexError)"
   # ```
   def swap(index0, index1) : Array(T)
-    index0 += size if index0 < 0
-    index1 += size if index1 < 0
+    _self = self.snapshot
+    index0 += _self.size if index0 < 0
+    index1 += _self.size if index1 < 0
 
-    unless (0 <= index0 < size) && (0 <= index1 < size)
+    unless (0 <= index0 < _self.size) && (0 <= index1 < _self.size)
       raise IndexError.new
     end
 
-    ptr = @buffer.data
+    ptr = _self.data
     ptr[index0], ptr[index1] = ptr[index1], ptr[index0]
 
     self
@@ -1914,10 +2069,11 @@ class Array(T)
   # a                   # => [{"student", "sam"}, {"student", "george"}, {"teacher", "matz"}]
   # ```
   def uniq(&block : T -> _)
-    if size <= 1
-      dup
+    _self = self.snapshot
+    if _self.size <= 1
+      Array.from_snapshot(_self)
     else
-      hash = to_lookup_hash { |elem| yield elem }
+      hash = _self.to_lookup_hash { |elem| yield elem }
       hash.values
     end
   end
@@ -1941,21 +2097,23 @@ class Array(T)
   # a                    # => [{"student", "sam"}, {"teacher", "matz"}]
   # ```
   def uniq!
-    if size <= 1
+    _self = self.snapshot
+
+    if _self.size <= 1
       return self
     end
 
-    hash = to_lookup_hash { |elem| yield elem }
-    if size == hash.size
+    hash = _self.to_lookup_hash { |elem| yield elem }
+    if _self.size == hash.size
       return self
     end
 
-    old_size = @size
+    old_size = _self.size
     new_size = hash.size
     removed = old_size - new_size
     return self if removed == 0
 
-    ptr = @buffer.data
+    ptr = _self.data
     # the hash will have less elements that the original capacity
     # of the buffer. And buffer can only grow.
     hash.each do |k, v|
@@ -1963,11 +2121,12 @@ class Array(T)
       ptr += 1
     end
 
-    @size = new_size
+    set_size_and_buffer(new_size, _self.buffer)
+
     # clearing a total of removed items from new_size
     # si safe because old_size = new_size + removed < original
     # capaticy of the buffer. And buffer can only grow.
-    (@buffer.data + new_size).clear(removed)
+    (@buffer.data + new_size).clear(removed) # TODO remove
 
     self
   end
@@ -1993,45 +2152,27 @@ class Array(T)
   # Prepend multiple values. The same as `unshift`, but takes an arbitrary number
   # of values to add to the array. Returns `self`.
   def unshift(*values : T)
-    new_size = @size + values.size
-    @buffer = @buffer.ensure_capacity(new_size)
+    _self = self.snapshot
+
+    new_size = _self.size + values.size
+    new_buffer = _self.buffer.ensure_capacity(new_size)
     move_value = values.size
-    ptr = @buffer.data
-    ptr.move_to(ptr + move_value, @size)
+    ptr = new_buffer.data
+    ptr.move_to(ptr + move_value, _self.size)
 
     values.each_with_index do |value, i|
       ptr[i] = value
     end
-    @size = new_size
+    set_size_and_buffer new_size, new_buffer
     self
   end
 
   def update(index : Int)
-    index = check_index_out_of_bounds index
-    ptr = @buffer.data
-    ptr[index] = yield ptr[index]
-  end
+    check_index_out_of_bounds index
+    _self = self.snapshot
+    index = _self.check_index_out_of_bounds index
 
-  private def check_needs_resize
-    double_capacity if @size == @buffer.capacity
-  end
-
-  private def double_capacity
-    capacity = @buffer.capacity
-    @buffer = @buffer.realloc(capacity == 0 ? 3 : (capacity * 2))
-  end
-
-  protected def to_lookup_hash
-    to_lookup_hash { |elem| elem }
-  end
-
-  protected def to_lookup_hash(&block : T -> U) forall U
-    each_with_object(Hash(U, T).new) do |o, h|
-      key = yield o
-      unless h.has_key?(key)
-        h[key] = o
-      end
-    end
+    _self.data[index] = yield _self.data[index]
   end
 
   # :nodoc:
