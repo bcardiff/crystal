@@ -106,7 +106,9 @@ module GC
 
   # :nodoc:
   def self.malloc_array(t : T.class) forall T
-    LibGC.generic_malloc(LibC::SizeT.new(instance_sizeof(Array(T))), array_kind)
+    # All Array(T) have the same size. Doing malloc_array(MyAbstract.class)
+    # lead to instance_sizeof(Array(Object)) if T is used instance_sizeof(Array(T))
+    LibGC.generic_malloc(LibC::SizeT.new(instance_sizeof(Array(Int32))), array_kind)
   end
 
   def self.init
