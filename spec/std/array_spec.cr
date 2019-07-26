@@ -60,7 +60,7 @@ describe "Array" do
   end
 
   describe "GC integration" do
-    it "Collects objects referenced in buffer outside array size" do
+    it "collects objects referenced in buffer outside array size" do
       Collected.finalized.should eq(0)
       ->{
         a = [] of Collected
@@ -87,6 +87,25 @@ describe "Array" do
       GC.collect
       Collected.finalized.should eq(10)
     end
+
+    it "#pop does not clear memory" do
+      a = [42]
+      a.pop
+      a.unsafe_fetch(0).should eq(42)
+    end
+
+    # TODO removing items does not clear memory
+    # def []=(index : Int, count : Int, value : T)
+    # def []=(index : Int, count : Int, values : Array(T))
+    # def clear
+    # def delete_at(index : Int)
+    # def delete_at(index : Int, count : Int)
+    # `reject!` and `delete` (via internal_delete)
+    # def pop # actually not needed but good to test
+    # def pop(n : Int)
+    # def shift
+    # def shift(n : Int)
+    # def uniq!
   end
 
   describe "==" do
