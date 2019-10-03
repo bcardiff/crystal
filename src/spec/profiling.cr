@@ -1,28 +1,15 @@
 require "crystal/profiling"
 
-CONTEXT_FILE = File.new("crystal_spec.prom", mode: "w")
-
-Spec.before_suite do
-  Crystal::Profiling.start
-end
+CONTEXT_FILE = Crystal::Profiling.open_profiling_file
 
 Spec.after_suite do
-  Crystal::Profiling.stop
   CONTEXT_FILE.puts
   CONTEXT_FILE.close
 end
 
 class Spec::RootContext
   def report(kind, full_description, file, line, elapsed = nil, ex = nil)
-    CONTEXT_FILE <<
-      "spec.context{kind=\"#{kind}\", " <<
-      "location=\"#{file}:#{line}\", " <<
-      "description=\"#{full_description.inspect}\"} " <<
-      "#{Time.local.to_unix}\n"
-    CONTEXT_FILE.flush
-
-    Crystal::Profiling.emit_gc(CONTEXT_FILE)
-
+    Crystal::Profiling.emit_gc_prof_stats(CONTEXT_FILE, {location: "#{file}:#{line}", description: full_description}, Time.local.to_unix)
     previous_def
   end
 end
