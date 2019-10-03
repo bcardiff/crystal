@@ -311,7 +311,7 @@ module Debug
               registers.discriminator = DWARF.read_unsigned_leb128(@io)
             else
               # skip unsupported opcode
-              @io.read_fully(Bytes.new(len))
+              @io.skip(len)
             end
           else
             # standard opcode
