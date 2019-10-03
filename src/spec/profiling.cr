@@ -17,7 +17,7 @@ class Spec::RootContext
     CONTEXT_FILE <<
       "spec.context{kind=\"#{kind}\", " <<
       "location=\"#{file}:#{line}\", " <<
-      "description=\"#{full_description}\"} " <<
+      "description=\"#{full_description.inspect}\"} " <<
       "#{Time.local.to_unix}\n"
     CONTEXT_FILE.flush
 
