@@ -8,6 +8,14 @@ defaults:
     - run: echo 'export CURRENT_TAG="$CIRCLE_TAG"' >> $BASH_ENV
     - run: bin/ci prepare_build
     - run: bin/ci build
+    - run:
+        command: |
+          mkdir profiling
+          mv *.prom ./profiling/
+        when: always
+    - store_artifacts:
+        path: profiling
+        destination: profiling
 
 version: 2
 
@@ -399,27 +407,27 @@ workflows:
   version: 2
   test_all_platforms:
     jobs:
-      - test_linux:
+      - test_linux32:
           filters: &unless_maintenance
             branches:
               ignore:
                 - /release\/.+/
                 - /.*\bci\b.*/
-      - test_linux32:
-          filters: *unless_maintenance
-      - test_darwin:
-          filters: *unless_maintenance
-      - test_preview_mt:
-          filters: *unless_maintenance
-      - check_format:
-          filters: *unless_maintenance
-      - sync_docs_s3:
-          filters:
-            branches:
-              only:
-                - master
-          requires:
-            - test_linux
+      # - test_linux32:
+      #     filters: *unless_maintenance
+      # - test_darwin:
+      #     filters: *unless_maintenance
+      # - test_preview_mt:
+      #     filters: *unless_maintenance
+      # - check_format:
+      #     filters: *unless_maintenance
+      # - sync_docs_s3:
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      #     requires:
+      #       - test_linux
 
   tagged_release:
     jobs:
