@@ -78,7 +78,7 @@ build() {
   case $ARCH in
     i386)
       with_build_env 'make crystal threads=1'
-      with_build_env 'make std_spec threads=1'
+      with_build_env 'FLAGS="--no-debug" make std_spec threads=1'
       # with_build_env 'SPEC_SPLIT="0%4" make std_spec threads=1'
       # with_build_env 'SPEC_SPLIT="1%4" make std_spec threads=1'
       # with_build_env 'SPEC_SPLIT="2%4" make std_spec threads=1'
