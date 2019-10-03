@@ -1119,10 +1119,12 @@ describe "Hash" do
     end
   end
 
-  it "doesn't generate a negative index for the bucket index (#2321)" do
-    items = (0..100000).map { rand(100000).to_i16! }
-    items.uniq.size
-  end
+  {% unless flag?(:bits32) %}
+    it "doesn't generate a negative index for the bucket index (#2321)" do
+      items = (0..100000).map { rand(100000).to_i16! }
+      items.uniq.size
+    end
+  {% end %}
 
   it "creates with initial capacity" do
     hash = Hash(Int32, Int32).new(initial_capacity: 1234)
@@ -1179,12 +1181,14 @@ describe "Hash" do
       hash[1].should eq(2)
     end
 
-    it "edge case 3" do
-      h = {} of Int32 => Int32
-      (1 << 17).times do |i|
-        h[i] = i
-        h[i].should eq(i)
+    {% unless flag?(:bits32) %}
+      it "edge case 3" do
+        h = {} of Int32 => Int32
+        (1 << 17).times do |i|
+          h[i] = i
+          h[i].should eq(i)
+        end
       end
-    end
+    {% end %}
   end
 end

@@ -72,16 +72,18 @@ describe "Deque" do
       end
     end
 
-    it "works the same as array when inserting at 1/8 size and deleting at 3/4 size" do
-      DequeTester.new.test do
-        1000.times do
-          step { c.insert(c.size // 8, i) }
-        end
-        1000.times do
-          step { c.delete_at(c.size * 3 // 4) }
+    {% unless flag?(:bits32) %}
+      it "works the same as array when inserting at 1/8 size and deleting at 3/4 size" do
+        DequeTester.new.test do
+          1000.times do
+            step { c.insert(c.size // 8, i) }
+          end
+          1000.times do
+            step { c.delete_at(c.size * 3 // 4) }
+          end
         end
       end
-    end
+    {% end %}
 
     it "works the same as array when inserting at 3/4 size and deleting at 1/8 size" do
       DequeTester.new.test do

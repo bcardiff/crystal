@@ -1,3 +1,5 @@
+{% skip_file if flag?(:bits32) %}
+
 require "spec"
 require "http/server"
 

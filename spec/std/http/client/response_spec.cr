@@ -123,15 +123,17 @@ class HTTP::Client
       response.body.should eq("")
     end
 
-    it "parses long request lines" do
-      request = Response.from_io?(IO::Memory.new("HTTP/1.1 200 #{"OK" * 600_000}\r\n\r\n"))
-      request.should eq(nil)
-    end
+    {% unless flag?(:bits32) %}
+      it "parses long request lines" do
+        request = Response.from_io?(IO::Memory.new("HTTP/1.1 200 #{"OK" * 600_000}\r\n\r\n"))
+        request.should eq(nil)
+      end
 
-    it "parses long headers" do
-      request = Response.from_io?(IO::Memory.new("HTTP/1.1 200 OK\r\n#{"X-Test-Header: A pretty log header value\r\n" * 100_000}\r\n"))
-      request.should eq(nil)
-    end
+      it "parses long headers" do
+        request = Response.from_io?(IO::Memory.new("HTTP/1.1 200 OK\r\n#{"X-Test-Header: A pretty log header value\r\n" * 100_000}\r\n"))
+        request.should eq(nil)
+      end
+    {% end %}
 
     describe "handle invalid IO" do
       it "missing HTTP header" do

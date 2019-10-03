@@ -252,12 +252,14 @@ describe HTTP::Server::RequestProcessor do
     output.rewind.gets_to_end.empty?.should be_true
   end
 
-  it "catches raised error on handler" do
-    processor = HTTP::Server::RequestProcessor.new { raise "OH NO" }
-    input = IO::Memory.new("GET / HTTP/1.1\r\n\r\n")
-    output = IO::Memory.new
-    error = IO::Memory.new
-    processor.process(input, output, error)
-    output.rewind.gets_to_end.should match(/Internal Server Error/)
-  end
+  {% unless flag?(:bits32) %}
+    it "catches raised error on handler" do
+      processor = HTTP::Server::RequestProcessor.new { raise "OH NO" }
+      input = IO::Memory.new("GET / HTTP/1.1\r\n\r\n")
+      output = IO::Memory.new
+      error = IO::Memory.new
+      processor.process(input, output, error)
+      output.rewind.gets_to_end.should match(/Internal Server Error/)
+    end
+  {% end %}
 end

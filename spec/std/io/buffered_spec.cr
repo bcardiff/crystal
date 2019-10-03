@@ -358,28 +358,30 @@ describe "IO::Buffered" do
       str.gets_to_end.should eq("bc")
     end
 
-    it "works with IO#read_byte (already buffered)" do
-      str = IO::Memory.new
-      str << "a" * DEFAULT_BUFFER_SIZE
-      str.pos = 0
+    {% unless flag?(:bits32) %}
+      it "works with IO#read_byte (already buffered)" do
+        str = IO::Memory.new
+        str << "a" * DEFAULT_BUFFER_SIZE
+        str.pos = 0
 
-      io = BufferedWrapper.new(str)
-      io.read_buffering?.should be_true
+        io = BufferedWrapper.new(str)
+        io.read_buffering?.should be_true
 
-      io.buffer_size.times do
-        io.read_byte.should eq('a'.ord.to_u8)
+        io.buffer_size.times do
+          io.read_byte.should eq('a'.ord.to_u8)
+        end
+
+        io.read_buffering = false
+        io.read_buffering?.should be_false
+
+        str << "bcde"
+        str.pos -= 4
+
+        io.read_byte.should eq('b'.ord.to_u8)
+
+        str.gets_to_end.should eq("cde")
       end
-
-      io.read_buffering = false
-      io.read_buffering?.should be_false
-
-      str << "bcde"
-      str.pos -= 4
-
-      io.read_byte.should eq('b'.ord.to_u8)
-
-      str.gets_to_end.should eq("cde")
-    end
+    {% end %}
   end
 
   it "shouldn't call unbuffered read if reading to an empty slice" do

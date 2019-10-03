@@ -89,20 +89,22 @@ describe "JUnit Formatter" do
     name.should eq(%(complicated \" <n>'&ame))
   end
 
-  it "report failure stacktrace if present" do
-    cause = exception_with_backtrace("Something happened")
+  {% unless flag?(:bits32) %}
+    it "report failure stacktrace if present" do
+      cause = exception_with_backtrace("Something happened")
 
-    output = build_report do |f|
-      f.report Spec::Result.new(:fail, "foo", __FILE__, __LINE__, nil, cause)
+      output = build_report do |f|
+        f.report Spec::Result.new(:fail, "foo", __FILE__, __LINE__, nil, cause)
+      end
+
+      xml = XML.parse(output)
+      name = xml.xpath_string("string(//testsuite/testcase[1]/failure/@message)")
+      name.should eq("Something happened")
+
+      backtrace = xml.xpath_string("string(//testsuite/testcase[1]/failure/text())")
+      backtrace.should eq(cause.backtrace.join('\n'))
     end
-
-    xml = XML.parse(output)
-    name = xml.xpath_string("string(//testsuite/testcase[1]/failure/@message)")
-    name.should eq("Something happened")
-
-    backtrace = xml.xpath_string("string(//testsuite/testcase[1]/failure/text())")
-    backtrace.should eq(cause.backtrace.join('\n'))
-  end
+  {% end %}
 
   it "report error stacktrace if present" do
     cause = exception_with_backtrace("Something happened")

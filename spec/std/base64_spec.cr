@@ -79,11 +79,13 @@ describe "Base64" do
       io.gets_to_end.should eq "Now is the time for all good coders\nto learn Crystal"
     end
 
-    it "big message" do
-      a = "a" * 100000
-      b = Base64.encode(a)
-      Digest::MD5.hexdigest(Base64.decode_string(b)).should eq(Digest::MD5.hexdigest(a))
-    end
+    {% unless flag?(:bits32) %}
+      it "big message" do
+        a = "a" * 100000
+        b = Base64.encode(a)
+        Digest::MD5.hexdigest(Base64.decode_string(b)).should eq(Digest::MD5.hexdigest(a))
+      end
+    {% end %}
 
     it "works for most characters" do
       a = String.build(65536 * 4) do |buf|

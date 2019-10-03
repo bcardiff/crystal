@@ -3,21 +3,23 @@ require "zlib"
 
 module Zlib
   describe Zlib do
-    it "write read should be inverse with random string" do
-      expected = String.build do |io|
-        1_000_000.times { rand(2000).to_i.to_s(32, io) }
+    {% unless flag?(:bits32) %}
+      it "write read should be inverse with random string" do
+        expected = String.build do |io|
+          1_000_000.times { rand(2000).to_i.to_s(32, io) }
+        end
+
+        io = IO::Memory.new
+
+        writer = Writer.new(io)
+        writer.print expected
+        writer.close
+
+        io.rewind
+        reader = Reader.new(io)
+        reader.gets_to_end.should eq(expected)
       end
-
-      io = IO::Memory.new
-
-      writer = Writer.new(io)
-      writer.print expected
-      writer.close
-
-      io.rewind
-      reader = Reader.new(io)
-      reader.gets_to_end.should eq(expected)
-    end
+    {% end %}
 
     it "write read should be inverse (utf-8)" do
       expected = "日本さん語日本さん語"
