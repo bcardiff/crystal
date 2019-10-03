@@ -21,6 +21,8 @@ class Spec::RootContext
       "#{Time.local.to_unix}\n"
     CONTEXT_FILE.flush
 
+    Crystal::Profiling.emit_gc(CONTEXT_FILE)
+
     previous_def
   end
 end
