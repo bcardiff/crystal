@@ -75,8 +75,19 @@ prepare_system() {
 build() {
   case $ARCH in
     i386)
+      free -m
+      docker stats -a --no-stream
+
       with_build_env 'CRYSTAL_PROFILING_FILE=std_spec_0.prom make std_spec clean threads=1'
+
+      free -m
+      docker stats -a --no-stream
+
       with_build_env 'FLAGS="--no-debug" make crystal threads=1'
+
+      free -m
+      docker stats -a --no-stream
+
       with_build_env 'CRYSTAL_PROFILING_FILE=std_spec_1.prom FLAGS="--no-debug" make std_spec threads=1'
       # with_build_env 'SPEC_SPLIT="0%4" make std_spec threads=1'
       # with_build_env 'SPEC_SPLIT="1%4" make std_spec threads=1'
