@@ -257,23 +257,25 @@ describe HTTP::WebSocket do
       (bytes[2] ^ bytes[10]).should eq('o'.ord)
     end
 
-    it "sends long data with correct header" do
-      size = UInt16::MAX.to_u64 + 1
-      big_string = "a" * size
-      io = IO::Memory.new
-      ws = HTTP::WebSocket::Protocol.new(io, masked: true)
-      ws.send(big_string)
-      bytes = io.to_slice
-      bytes.size.should eq(size + 14) # 2 bytes header, 8 bytes size, 4 bytes mask, UInt16::MAX + 1 bytes content
-      bytes[1].bit(7).should eq(1)    # For mask bit
-      (bytes[1] - 128).should eq(127)
-      received_size = 0
-      8.times { |i| received_size <<= 8; received_size += bytes[2 + i] }
-      received_size.should eq(size)
-      size.times do |i|
-        (bytes[14 + i] ^ bytes[10 + (i % 4)]).should eq('a'.ord)
+    {% unless flag?(:bits32) %}
+      it "sends long data with correct header" do
+        size = UInt16::MAX.to_u64 + 1
+        big_string = "a" * size
+        io = IO::Memory.new
+        ws = HTTP::WebSocket::Protocol.new(io, masked: true)
+        ws.send(big_string)
+        bytes = io.to_slice
+        bytes.size.should eq(size + 14) # 2 bytes header, 8 bytes size, 4 bytes mask, UInt16::MAX + 1 bytes content
+        bytes[1].bit(7).should eq(1)    # For mask bit
+        (bytes[1] - 128).should eq(127)
+        received_size = 0
+        8.times { |i| received_size <<= 8; received_size += bytes[2 + i] }
+        received_size.should eq(size)
+        size.times do |i|
+          (bytes[14 + i] ^ bytes[10 + (i % 4)]).should eq('a'.ord)
+        end
       end
-    end
+    {% end %}
   end
 
   describe "close" do

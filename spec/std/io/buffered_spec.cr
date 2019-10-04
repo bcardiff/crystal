@@ -448,26 +448,28 @@ describe "IO::Buffered" do
         io.gets(chomp: false).should eq("Bar\n")
       end
 
-      it "gets big string" do
-        str = "Hello\nWorld\n" * 10_000
-        base_io = IO::Memory.new(str.encode("UCS-2LE"))
-        io = BufferedWrapper.new(base_io)
-        io.set_encoding("UCS-2LE")
-        10_000.times do |i|
-          io.gets(chomp: false).should eq("Hello\n")
-          io.gets(chomp: false).should eq("World\n")
+      {% unless flag?(:bits32) %}
+        it "gets big string" do
+          str = "Hello\nWorld\n" * 10_000
+          base_io = IO::Memory.new(str.encode("UCS-2LE"))
+          io = BufferedWrapper.new(base_io)
+          io.set_encoding("UCS-2LE")
+          10_000.times do |i|
+            io.gets(chomp: false).should eq("Hello\n")
+            io.gets(chomp: false).should eq("World\n")
+          end
         end
-      end
 
-      it "gets big GB2312 string" do
-        str = ("你好我是人\n" * 1000).encode("GB2312")
-        base_io = IO::Memory.new(str)
-        io = BufferedWrapper.new(base_io)
-        io.set_encoding("GB2312")
-        1000.times do
-          io.gets(chomp: false).should eq("你好我是人\n")
+        it "gets big GB2312 string" do
+          str = ("你好我是人\n" * 1000).encode("GB2312")
+          base_io = IO::Memory.new(str)
+          io = BufferedWrapper.new(base_io)
+          io.set_encoding("GB2312")
+          1000.times do
+            io.gets(chomp: false).should eq("你好我是人\n")
+          end
         end
-      end
+      {% end %}
 
       it "reads char" do
         str = "x\nHello world" + ("1234567890" * 1000)

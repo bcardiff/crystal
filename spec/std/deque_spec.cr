@@ -83,18 +83,18 @@ describe "Deque" do
           end
         end
       end
-    {% end %}
 
-    it "works the same as array when inserting at 3/4 size and deleting at 1/8 size" do
-      DequeTester.new.test do
-        1000.times do
-          step { c.insert(c.size * 3 // 4, i) }
-        end
-        1000.times do
-          step { c.delete_at(c.size // 8) }
+      it "works the same as array when inserting at 3/4 size and deleting at 1/8 size" do
+        DequeTester.new.test do
+          1000.times do
+            step { c.insert(c.size * 3 // 4, i) }
+          end
+          1000.times do
+            step { c.delete_at(c.size // 8) }
+          end
         end
       end
-    end
+    {% end %}
   end
 
   describe "new" do
