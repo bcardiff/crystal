@@ -83,7 +83,7 @@ build() {
       free -m
       docker stats -a --no-stream
 
-      with_build_env 'FLAGS="--no-debug" make crystal threads=1'
+      with_build_env 'FLAGS="--no-debug" make crystal threads=1 stats=1'
 
       free -m
       docker stats -a --no-stream
