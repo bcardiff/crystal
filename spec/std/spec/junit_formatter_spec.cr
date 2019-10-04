@@ -104,22 +104,22 @@ describe "JUnit Formatter" do
       backtrace = xml.xpath_string("string(//testsuite/testcase[1]/failure/text())")
       backtrace.should eq(cause.backtrace.join('\n'))
     end
-  {% end %}
 
-  it "report error stacktrace if present" do
-    cause = exception_with_backtrace("Something happened")
+    it "report error stacktrace if present" do
+      cause = exception_with_backtrace("Something happened")
 
-    output = build_report do |f|
-      f.report Spec::Result.new(:error, "foo", __FILE__, __LINE__, nil, cause)
+      output = build_report do |f|
+        f.report Spec::Result.new(:error, "foo", __FILE__, __LINE__, nil, cause)
+      end
+
+      xml = XML.parse(output)
+      name = xml.xpath_string("string(//testsuite/testcase[1]/error/@message)")
+      name.should eq("Something happened")
+
+      backtrace = xml.xpath_string("string(//testsuite/testcase[1]/error/text())")
+      backtrace.should eq(cause.backtrace.join('\n'))
     end
-
-    xml = XML.parse(output)
-    name = xml.xpath_string("string(//testsuite/testcase[1]/error/@message)")
-    name.should eq("Something happened")
-
-    backtrace = xml.xpath_string("string(//testsuite/testcase[1]/error/text())")
-    backtrace.should eq(cause.backtrace.join('\n'))
-  end
+  {% end %}
 end
 
 private def build_report

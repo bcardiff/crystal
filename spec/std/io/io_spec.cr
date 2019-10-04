@@ -562,12 +562,14 @@ describe IO do
         io.gets('人', chomp: true).should eq("你好我是")
       end
 
-      it "gets with limit (big)" do
-        str = "Hello world" * 10_000
-        io = SimpleIOMemory.new(str.encode("UCS-2LE"))
-        io.set_encoding("UCS-2LE")
-        io.gets(20_000).should eq(str[0, 20_000])
-      end
+      {% unless flag?(:bits32) %}
+        it "gets with limit (big)" do
+          str = "Hello world" * 10_000
+          io = SimpleIOMemory.new(str.encode("UCS-2LE"))
+          io.set_encoding("UCS-2LE")
+          io.gets(20_000).should eq(str[0, 20_000])
+        end
+      {% end %}
 
       it "gets with string delimiter" do
         str = "Hello world\nFoo\nBar"

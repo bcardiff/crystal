@@ -82,21 +82,23 @@ class Time::Location
           end
         end
 
-        it "loads from custom zipfile" do
-          with_zoneinfo(ZONEINFO_ZIP) do
-            location = Location.load("Asia/Jerusalem")
-            location.not_nil!.name.should eq "Asia/Jerusalem"
-          end
-        end
-
-        it "raises if not available" do
-          with_zoneinfo(ZONEINFO_ZIP) do
-            expect_raises(InvalidLocationNameError) do
-              Location.load("Foo/Bar")
+        {% unless flag?(:bits32) %}
+          it "loads from custom zipfile" do
+            with_zoneinfo(ZONEINFO_ZIP) do
+              location = Location.load("Asia/Jerusalem")
+              location.not_nil!.name.should eq "Asia/Jerusalem"
             end
-            Location.load?("Foo/Bar", Crystal::System::Time.zone_sources).should be_nil
           end
-        end
+
+          it "raises if not available" do
+            with_zoneinfo(ZONEINFO_ZIP) do
+              expect_raises(InvalidLocationNameError) do
+                Location.load("Foo/Bar")
+              end
+              Location.load?("Foo/Bar", Crystal::System::Time.zone_sources).should be_nil
+            end
+          end
+        {% end %}
 
         it "does not fall back to default sources" do
           with_zoneinfo(datapath("zoneinfo")) do
