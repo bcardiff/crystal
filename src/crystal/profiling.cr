@@ -14,11 +14,7 @@ module Crystal::Profiling
 
     Thread.new do
       while !@@stop
-        timestamp = Time.local.to_unix
-
-        emit_gc_prof_stats(profiling_file, nil, timestamp)
-        emit_fibers_stats(profiling_file, nil, timestamp)
-
+        emit_all(profiling_file, nil, Time.local.to_unix)
         sleep interval
       end
 
@@ -35,6 +31,15 @@ module Crystal::Profiling
     while !@@profile_finished
       Intrinsics.pause
     end
+  end
+
+  def self.debug(description, file = __FILE__, line = __LINE__)
+    Crystal::Profiling.emit_all(profiling_file, {location: "#{file}:#{line}", description: description}, Time.local.to_unix)
+  end
+
+  def self.emit_all(io, attributes = nil, timestamp = nil)
+    emit_gc_prof_stats(profiling_file, attributes, timestamp)
+    emit_fibers_stats(profiling_file, attributes, timestamp)
   end
 
   def self.emit_gc_prof_stats(io, attributes = nil, timestamp = nil)
