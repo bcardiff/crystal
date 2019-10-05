@@ -1,12 +1,19 @@
 module Crystal::Profiling
   @@stop = false
   @@profile_finished = false
+  @@lock = Mutex.new
+
+  @@profiling_file : IO?
 
   FILE_PATH = ENV.fetch("CRYSTAL_PROFILING_FILE") { "#{File.basename(PROGRAM_NAME)}.prom" }
   INTERVAL  = ENV.fetch("CRYSTAL_PROFILING_INTERVAL") { "0.5" }.to_f
 
+  def self.profiling_file
+    @@profiling_file ||= open_profiling_file
+  end
+
   def self.open_profiling_file(file_path : Path | String = FILE_PATH)
-    File.new(file_path, mode: "w")
+    @@profiling_file = File.new(file_path, mode: "w")
   end
 
   def self.start(file_path : Path | String = FILE_PATH, interval = INTERVAL)
@@ -38,6 +45,12 @@ module Crystal::Profiling
   end
 
   def self.emit_all(io, attributes = nil, timestamp = nil)
+    @@lock.synchronize do
+      unsync_emit_all(io, attributes, timestamp)
+    end
+  end
+
+  def self.unsync_emit_all(io, attributes = nil, timestamp = nil)
     emit_gc_prof_stats(profiling_file, attributes, timestamp)
     emit_fibers_stats(profiling_file, attributes, timestamp)
   end
