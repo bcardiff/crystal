@@ -60,9 +60,9 @@ describe "Code gen: sizeof" do
     # Note: order of the components can affect the total size, types are ordered by opaque_id.
     #
     {% if flag?(:bits64) %}
-      size.should eq(has_expanded_unions_flag? ? 16 : 16)
+      size.should eq(unions_strategy.expanded? ? 16 : 16)
     {% else %}
-      size.should eq(has_expanded_unions_flag? ? 16 : 12)
+      size.should eq(unions_strategy.expanded? ? 16 : 12)
     {% end %}
   end
 
@@ -230,7 +230,7 @@ describe "Code gen: sizeof" do
       # %FooEntry = type { %String* }
       # adding 8 bit alignments: 24 bytes
 
-      size.should eq(has_expanded_unions_flag? ? 24 : 16)
+      size.should eq(unions_strategy.expanded? ? 24 : 16)
     end
   {% end %}
 

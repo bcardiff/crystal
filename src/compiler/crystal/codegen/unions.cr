@@ -14,8 +14,17 @@
 #
 module Crystal
   class Program
-    def expanded_unions?
-      has_flag?("expanded_unions")
+    enum UnionsStrategy
+      Collapsed
+      Expanded
+    end
+
+    def unions_strategy
+      if has_flag?("expanded_unions")
+        UnionsStrategy::Expanded
+      else
+        UnionsStrategy::Collapsed
+      end
     end
 
     @all_concrete_types_cache = Hash(Crystal::Type, Set(Crystal::Type)).new
@@ -44,13 +53,13 @@ module Crystal
     @mixed_unions_value_offsets = Hash(MixedUnionType, Hash(Type, Int32)).new
 
     def set_mixed_union_value_offsets(union_type : MixedUnionType, value_offsets = Hash(Type, Int32))
-      raise "BUG: Unexpected call to set_mixed_union_value_offsets. Program is not being compiled with expanded unions." unless @program.expanded_unions?
+      raise "BUG: Unexpected call to set_mixed_union_value_offsets. Program is not being compiled with expanded unions." unless @program.unions_strategy.expanded?
 
       @mixed_unions_value_offsets[union_type] = value_offsets
     end
 
     def mixed_union_value_offset(union_type : MixedUnionType, type : Type) : Int32
-      raise "BUG: Unexpected call to mixed_union_value_offset. Program is not being compiled with expanded unions." unless @program.expanded_unions?
+      raise "BUG: Unexpected call to mixed_union_value_offset. Program is not being compiled with expanded unions." unless @program.unions_strategy.expanded?
       raise "BUG: looking for a value_offset for a union type #{type}." if type.is_a?(UnionType)
 
       # Since this is used in codegen, the semantic analysis should've
@@ -83,7 +92,8 @@ module Crystal
           @structs[llvm_name] = a_struct
         end
 
-        unless @program.expanded_unions?
+        case @program.unions_strategy
+        when .collapsed?
           max_size = 0
           type.expand_union_types.each do |subtype|
             unless subtype.void?
@@ -100,7 +110,7 @@ module Crystal
           llvm_value_type = size_t.array(max_size)
 
           [@llvm_context.int32, llvm_value_type]
-        else
+        when .expanded?
           value_offsets = Hash(Type, Int32).new
           @program.set_mixed_union_value_offsets(type, value_offsets)
 
@@ -136,6 +146,8 @@ module Crystal
           end
 
           res
+        else
+          raise "unreachable"
         end
       end
     end
@@ -149,7 +161,7 @@ module Crystal
     end
 
     def union_value_type(type : MixedUnionType)
-      raise "BUG: Unexpected call to union_value_type. Program is being compiled with expanded unions." if @program.expanded_unions?
+      raise "BUG: Unexpected call to union_value_type. Program is being compiled with expanded unions." if @program.unions_strategy.expanded?
       llvm_type(type).struct_element_types[1]
     end
   end
@@ -160,11 +172,12 @@ module Crystal
     end
 
     def union_type_and_value_pointer(union_pointer, type : MixedUnionType)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         # In compacted (legacy) unions the value is stored always in the same place and the type id
         # is stored explictly in the first component
         {load(union_type_id(union_pointer)), union_value(union_pointer)}
-      else
+      when .expanded?
         # In expanded unions the type id defines in which component the value needs to be looked up.
         # In case of a reference, the actual type id is stored in the first component of the referenced value.
         # Since this method returns a pointer where the value is referenced we use a stack allocated pointer
@@ -268,6 +281,8 @@ module Crystal
         actual_value_pointer = phi llvm_typer.size_t.pointer, value_pointer_phi_table
 
         {actual_type_id, actual_value_pointer}
+      else
+        raise "unreachable"
       end
     end
 
@@ -309,16 +324,17 @@ module Crystal
     end
 
     def union_value(union_pointer)
-      raise "BUG: Unexpected call to union_value. Program is being compiled with expanded unions." if @program.expanded_unions?
+      raise "BUG: Unexpected call to union_value. Program is being compiled with expanded unions." if @program.unions_strategy.expanded?
       aggregate_index union_pointer, 1
     end
 
     def store_in_union(union_type, union_pointer, value_type, value)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         store type_id(value, value_type), union_type_id(union_pointer)
         casted_value_ptr = cast_to_pointer(union_value(union_pointer), value_type)
         store value, casted_value_ptr
-      else
+      when .expanded?
         mutual_types = @program.all_concrete_types(union_type) & @program.all_concrete_types(value_type)
 
         # This check can't be added becuase the mutual_types might be empty
@@ -417,11 +433,14 @@ module Crystal
         switch actual_value_type_id, otherwise, cases
 
         position_at_end exit_block
+      else
+        raise "unreachable"
       end
     end
 
     def store_bool_in_union(union_type, union_pointer, value)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         store type_id(value, @program.bool), union_type_id(union_pointer)
 
         # To store a boolean in a union
@@ -433,20 +452,23 @@ module Crystal
         bool_as_extended_int = builder.zext(value, int_type)
         casted_value_ptr = bit_cast(union_value(union_pointer), int_type.pointer)
         store bool_as_extended_int, casted_value_ptr
-      else
+      when .expanded?
         store_in_union(union_type, union_pointer, @program.bool, value)
+      else
+        raise "unreachable"
       end
     end
 
     def store_nil_in_union(union_pointer, target_type)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         union_value_type = @llvm_typer.union_value_type(target_type)
         value = union_value_type.null
 
         store type_id(value, @program.nil), union_type_id(union_pointer)
         casted_value_ptr = bit_cast union_value(union_pointer), union_value_type.pointer
         store value, casted_value_ptr
-      else
+      when .expanded?
         # Clean up reference component (if exists) to help GC.
         has_not_nil_reference_like = @program.all_concrete_types(target_type).any? { |t| t.reference_like? && !t.nil_type? }
         if has_not_nil_reference_like
@@ -455,6 +477,8 @@ module Crystal
         end
 
         store_volatile type_id(@program.nil), union_type_id(union_pointer)
+      else
+        raise "unreachable"
       end
     end
 
@@ -463,31 +487,40 @@ module Crystal
     end
 
     def assign_distinct_union_types(target_pointer, target_type, value_type, value)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         casted_value = cast_to_pointer value, target_type
         store load(casted_value), target_pointer
-      else
+      when .expanded?
         store_in_union target_type, target_pointer, value_type, value
+      else
+        raise "unreachable"
       end
     end
 
     def downcast_distinct_union_types(value, to_type : MixedUnionType, from_type : MixedUnionType)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         cast_to_pointer value, to_type
-      else
+      when .expanded?
         union_ptr = alloca llvm_type(to_type)
         store_in_union to_type, union_ptr, from_type, value
         union_ptr
+      else
+        raise "unreachable"
       end
     end
 
     def upcast_distinct_union_types(value, to_type : MixedUnionType, from_type : MixedUnionType)
-      unless @program.expanded_unions?
+      case @program.unions_strategy
+      when .collapsed?
         cast_to_pointer value, to_type
-      else
+      when .expanded?
         union_ptr = alloca llvm_type(to_type)
         store_in_union to_type, union_ptr, from_type, value
         union_ptr
+      else
+        raise "unreachable"
       end
     end
 

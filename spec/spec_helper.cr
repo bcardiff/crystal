@@ -193,8 +193,8 @@ def program_flags_options : Array(String)
   options
 end
 
-def has_expanded_unions_flag?
-  new_program.expanded_unions?
+def unions_strategy
+  new_program.unions_strategy
 end
 
 class Crystal::SpecRunOutput
