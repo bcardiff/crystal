@@ -366,7 +366,15 @@ module Crystal
         # Always run verifications so we can catch bugs earlier and more often.
         # We can probably remove this, or only enable this when compiling in
         # release mode, once we reach 1.0.
-        mod.verify
+        if ENV["CRYSTAL_SKIP_VERIFY"]?
+          begin
+            mod.verify
+          rescue e
+            ::puts e
+          end
+        else
+          mod.verify
+        end
       end
     end
 
