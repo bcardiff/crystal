@@ -496,7 +496,7 @@ module Crystal
     def visit(node : NamedTupleLiteral)
       request_value do
         type = node.type.as(NamedTupleInstanceType)
-        struct_type = alloca llvm_type(type)
+        struct_type = declare_value_storage(type)
         node.entries.each do |entry|
           accept entry.value
           index = type.name_index(entry.key).not_nil!
@@ -1088,7 +1088,7 @@ module Crystal
         thread_local_fun.add_attribute LLVM::Attribute::NoInline
       end
       thread_local_fun = check_main_fun(fun_name, thread_local_fun)
-      indirection_ptr = alloca llvm_type(type).pointer
+      indirection_ptr = llvm_alloca llvm_type(type).pointer
       call thread_local_fun, indirection_ptr
       ptr = load indirection_ptr
     end
@@ -1352,8 +1352,17 @@ module Crystal
       false
     end
 
+    def declare_value_storage(type : Type, name = "")
+      ptr = llvm_alloca(llvm_type(type), name)
+      init_value_storage(type, ptr)
+    end
+
+    def init_value_storage(type : Type, ptr)
+      ptr
+    end
+
     def declare_var(var)
-      context.vars[var.name] ||= LLVMVar.new(var.no_returns? ? llvm_nil : alloca(llvm_type(var.type), var.name), var.type)
+      context.vars[var.name] ||= LLVMVar.new(var.no_returns? ? llvm_nil : declare_value_storage(var.type, var.name), var.type)
     end
 
     def declare_lib_var(name, type, thread_local)
@@ -1551,7 +1560,7 @@ module Crystal
     end
 
     def make_fun(type, fun_ptr, ctx_ptr)
-      closure_ptr = alloca llvm_type(type)
+      closure_ptr = declare_value_storage(type)
       store fun_ptr, gep(closure_ptr, 0, 0)
       store ctx_ptr, gep(closure_ptr, 0, 1)
       load(closure_ptr)
@@ -1720,7 +1729,7 @@ module Crystal
             is_arg = args.try &.any? { |arg| arg.name == var.name }
             next if is_arg
 
-            ptr = builder.alloca llvm_type(var_type), name
+            ptr = declare_value_storage(var_type, name)
             context.vars[name] = LLVMVar.new(ptr, var_type)
 
             # Assign default nil for variables that are bound to the nil variable
@@ -1761,7 +1770,9 @@ module Crystal
         closure_type = @llvm_typer.closure_context_type(closure_vars, parent_closure_type, (self_closured ? current_context.type : nil))
         closure_ptr = malloc closure_type
         closure_vars.each_with_index do |var, i|
-          current_context.vars[var.name] = LLVMVar.new(gep(closure_ptr, 0, i, var.name), var.type)
+          var_ptr = gep(closure_ptr, 0, i, var.name)
+          current_context.vars[var.name] = LLVMVar.new(var_ptr, var.type)
+          init_value_storage(var.type, var_ptr)
         end
         closure_skip_parent = false
 
@@ -1820,8 +1831,17 @@ module Crystal
       var.dependencies.any? &.same?(@program.nil_var)
     end
 
-    def alloca(type, name = "")
-      in_alloca_block { builder.alloca type, name }
+    def alloca(type : LLVM::Type, name = "")
+      # TODO remove alloca method and use llvm_alloca or declare_value_storage
+      in_alloca_block {
+        builder.alloca type, name
+      }
+    end
+
+    def llvm_alloca(type : LLVM::Type, name = "")
+      in_alloca_block {
+        builder.alloca type, name
+      }
     end
 
     def in_alloca_block
@@ -1875,7 +1895,7 @@ module Crystal
     def allocate_aggregate(type)
       struct_type = llvm_struct_type(type)
       if type.passed_by_value?
-        @last = alloca struct_type
+        @last = declare_value_storage(type)
       else
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
@@ -1891,7 +1911,7 @@ module Crystal
     end
 
     def allocate_tuple(type)
-      struct_type = alloca llvm_type(type)
+      struct_type = declare_value_storage(type)
       type.tuple_types.each_with_index do |tuple_type, i|
         exp_type, value = yield tuple_type, i
         assign aggregate_index(struct_type, i), tuple_type, exp_type, value

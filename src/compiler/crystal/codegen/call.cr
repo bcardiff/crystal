@@ -164,7 +164,7 @@ class Crystal::CodeGenVisitor
     old_needs_value = @needs_value
 
     if abi_info.return_type.attr == LLVM::Attribute::StructRet
-      sret_value = @sret_value = alloca abi_info.return_type.type
+      sret_value = @sret_value = llvm_alloca abi_info.return_type.type
       call_args << sret_value
     end
 
@@ -175,7 +175,7 @@ class Crystal::CodeGenVisitor
         when Var, Underscore
           # For out arguments we reserve the space. After the call
           # we move the value to the variable.
-          call_arg = alloca(llvm_type(arg.type))
+          call_arg = declare_value_storage(arg.type)
         when InstanceVar
           call_arg = instance_var_ptr(type, exp.name, llvm_self_ptr)
         else
@@ -516,7 +516,7 @@ class Crystal::CodeGenVisitor
         unreachable
       when .passed_by_value?
         if @needs_value
-          union = alloca llvm_type(type)
+          union = declare_value_storage(type)
           store @last, union
           @last = union
         else

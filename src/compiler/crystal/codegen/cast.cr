@@ -135,7 +135,7 @@ class Crystal::CodeGenVisitor
 
         # Store value
         casted_value = cast_to_pointer(union_value_ptr, type_needing_cast)
-        compatible_ptr = alloca llvm_type(compatible_type)
+        compatible_ptr = declare_value_storage(compatible_type)
         assign(compatible_ptr, compatible_type, type_needing_cast, casted_value)
         store_in_union target_type, target_pointer, compatible_type, load(compatible_ptr)
         br exit_label
@@ -310,7 +310,7 @@ class Crystal::CodeGenVisitor
   def downcast_distinct(value, to_type : MixedUnionType, from_type : VirtualType)
     # This happens if the restriction is a union:
     # we keep each of the union types as the result, we don't fully merge
-    union_ptr = alloca llvm_type(to_type)
+    union_ptr = declare_value_storage(to_type)
     store_in_union to_type, union_ptr, from_type, value
     union_ptr
   end
@@ -462,7 +462,7 @@ class Crystal::CodeGenVisitor
   end
 
   def downcast_distinct(value, to_type : TupleInstanceType, from_type : TupleInstanceType)
-    target_pointer = alloca(llvm_type(to_type))
+    target_pointer = declare_value_storage(to_type)
     index = 0
     to_type.tuple_types.zip(from_type.tuple_types) do |target_tuple_type, value_tuple_type|
       target_ptr = gep target_pointer, 0, index
@@ -477,7 +477,7 @@ class Crystal::CodeGenVisitor
   end
 
   def downcast_distinct(value, to_type : NamedTupleInstanceType, from_type : NamedTupleInstanceType)
-    target_pointer = alloca(llvm_type(to_type))
+    target_pointer = declare_value_storage(to_type)
     from_type.entries.each_with_index do |entry, index|
       value_ptr = aggregate_index(value, index)
       value_at_index = to_lhs(value_ptr, entry.type)
@@ -636,19 +636,19 @@ class Crystal::CodeGenVisitor
   end
 
   def upcast_distinct(value, to_type : MixedUnionType, from_type : VoidType)
-    union_ptr = alloca(llvm_type(to_type))
+    union_ptr = declare_value_storage(to_type)
     store_void_in_union union_ptr, to_type
     union_ptr
   end
 
   def upcast_distinct(value, to_type : MixedUnionType, from_type : BoolType)
-    union_ptr = alloca(llvm_type(to_type))
+    union_ptr = declare_value_storage(to_type)
     store_bool_in_union to_type, union_ptr, value
     union_ptr
   end
 
   def upcast_distinct(value, to_type : MixedUnionType, from_type : NilType)
-    union_ptr = alloca(llvm_type(to_type))
+    union_ptr = declare_value_storage(to_type)
     store_nil_in_union union_ptr, to_type
     union_ptr
   end
@@ -665,7 +665,7 @@ class Crystal::CodeGenVisitor
       end
     end
 
-    union_ptr = alloca(llvm_type(to_type))
+    union_ptr = declare_value_storage(to_type)
     store_in_union(to_type, union_ptr, from_type, to_rhs(value, from_type))
     union_ptr
   end
@@ -675,13 +675,13 @@ class Crystal::CodeGenVisitor
   end
 
   def upcast_distinct(value, to_type : TupleInstanceType, from_type : TupleInstanceType)
-    target_ptr = alloca llvm_type(to_type)
+    target_ptr = declare_value_storage(to_type)
     assign(target_ptr, to_type, from_type, value)
     target_ptr
   end
 
   def upcast_distinct(value, to_type : NamedTupleInstanceType, from_type : NamedTupleInstanceType)
-    target_ptr = alloca llvm_type(to_type)
+    target_ptr = declare_value_storage(to_type)
     assign(target_ptr, to_type, from_type, value)
     target_ptr
   end

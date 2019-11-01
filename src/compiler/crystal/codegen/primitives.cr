@@ -1190,7 +1190,7 @@ class Crystal::CodeGenVisitor
 
     pointer, cmp, new = call_args
     value = builder.cmpxchg(pointer, cmp, new, success_ordering, failure_ordering)
-    value_ptr = alloca llvm_type(node.type)
+    value_ptr = declare_value_storage(node.type)
     store extract_value(value, 0), gep(value_ptr, 0, 0)
     store extract_value(value, 1), gep(value_ptr, 0, 1)
     value_ptr

@@ -122,7 +122,7 @@ class Crystal::CodeGenVisitor
         position_at_end catch_body
 
         # Allocate space for the caught exception
-        caught_exception_ptr = alloca llvm_type(@program.exception.virtual_type)
+        caught_exception_ptr = declare_value_storage(@program.exception.virtual_type)
 
         # The catchpad instruction dictates which types of exceptions this block handles,
         # we want all of them, so we rescue all void* by passing the void_ptr_type_descriptor.

@@ -212,7 +212,7 @@ module Crystal
 
               reference_value_ptr = aggregate_index(union_pointer, @program.mixed_union_value_offset(type, @program.reference))
               reference_value = load(reference_value_ptr)
-              reference_value_ptr_copy = alloca(llvm_typer.size_t.pointer)
+              reference_value_ptr_copy = llvm_alloca(llvm_typer.size_t.pointer)
 
               if all_concrete_types.any?(&.nil_type?)
                 # only include fallback to read a nil value if the
@@ -503,7 +503,7 @@ module Crystal
       when .collapsed?
         cast_to_pointer value, to_type
       when .expanded?
-        union_ptr = alloca llvm_type(to_type)
+        union_ptr = declare_value_storage(to_type)
         store_in_union to_type, union_ptr, from_type, value
         union_ptr
       else
@@ -516,7 +516,7 @@ module Crystal
       when .collapsed?
         cast_to_pointer value, to_type
       when .expanded?
-        union_ptr = alloca llvm_type(to_type)
+        union_ptr = declare_value_storage(to_type)
         store_in_union to_type, union_ptr, from_type, value
         union_ptr
       else

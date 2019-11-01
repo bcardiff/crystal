@@ -475,7 +475,8 @@ class Crystal::CodeGenVisitor
 
       if arg.type.passed_by_value?
         # Create an alloca and store it there, so assign works well
-        pointer2 = alloca(llvm_type(arg.type))
+        pointer2 = declare_value_storage(arg.type)
+        # TODO need to visit internal structure of value
         store value, pointer2
         value = pointer2
       end
@@ -483,7 +484,7 @@ class Crystal::CodeGenVisitor
       # If it's an extern struct on a def that must be codegened with C ABI
       # compatibility, and it's not passed byval, we must cast the value
       if target_def.c_calling_convention? && arg.type.extern? && !context.fun.attributes(index + 1).by_val?
-        pointer = alloca(llvm_type(var_type), arg.name)
+        pointer = declare_value_storage(var_type, arg.name)
         casted_pointer = bit_cast pointer, value.type.pointer
         store value, casted_pointer
         context.vars[arg.name] = LLVMVar.new(pointer, var_type)
@@ -496,12 +497,13 @@ class Crystal::CodeGenVisitor
         # assigned a value inside the function.
         needs_copy = target_def_var.try &.assigned_to?
         if needs_copy
-          pointer = alloca(llvm_type(var_type), arg.name)
+          pointer = declare_value_storage(var_type, arg.name)
           context.vars[arg.name] = LLVMVar.new(pointer, var_type)
 
           if arg.type.passed_by_value? && !context.fun.attributes(index + 1).by_val?
             # Create an alloca and store it there, so assign works well
-            pointer2 = alloca(llvm_type(arg.type))
+            pointer2 = declare_value_storage(arg.type)
+            # TODO need to visit internal structure of value
             store value, pointer2
             value = pointer2
           end
@@ -509,7 +511,8 @@ class Crystal::CodeGenVisitor
           if arg.type.passed_by_value? && !context.fun.attributes(index + 1).by_val?
             # For pass-by-value we create an alloca so the value
             # is behind a pointer, as everywhere else
-            pointer = alloca(llvm_type(var_type), arg.name)
+            pointer = declare_value_storage(var_type, arg.name)
+            # TODO need to visit internal structure of value
             store value, pointer
             context.vars[arg.name] = LLVMVar.new(pointer, var_type)
             return
