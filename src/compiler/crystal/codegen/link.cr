@@ -151,6 +151,11 @@ module Crystal
 
     def link_annotations
       annotations = [] of LinkAnnotation
+
+      if program.unions_strategy.hle?
+        annotations << LinkAnnotation.new("tsxlocks", nil, true, nil)
+      end
+
       add_link_annotations @types, annotations
       annotations
     end

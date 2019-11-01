@@ -79,7 +79,11 @@ class Crystal::CodeGenVisitor
       if target_type.nil_type?
         value
       else
-        store to_rhs(value, target_type), target_pointer
+        if target_type.is_a?(MixedUnionType) && value_type.is_a?(MixedUnionType) && @program.unions_strategy.hle?
+          store_in_union(target_type, target_pointer, value_type, value)
+        else
+          store to_rhs(value, target_type), target_pointer
+        end
       end
     else
       assign_distinct target_pointer, target_type, value_type, value
@@ -143,11 +147,13 @@ class Crystal::CodeGenVisitor
         position_at_end doesnt_match_label
       end
 
+      # TODO is this assigning the whole union with the type?
       assign_distinct_union_types(target_pointer, target_type, value_type, value)
       br exit_label
 
       position_at_end exit_label
     else
+      # TODO is this assigning the whole union with the type?
       assign_distinct_union_types(target_pointer, target_type, value_type, value)
     end
   end
@@ -391,6 +397,8 @@ class Crystal::CodeGenVisitor
     end
 
     if needs_union_value_cast
+      union_lock_lock(value, from_type)
+
       # Compute the values that need a cast
       types_needing_cast = from_type.union_types.select do |vt|
         needs_value_cast_inside_union?(vt, to_type)
@@ -417,12 +425,15 @@ class Crystal::CodeGenVisitor
 
           position_at_end doesnt_match_label
         end
+        union_lock_unlock(value, from_type)
 
         final_value = cast_to_pointer value, to_type
         phi.add final_value, to_type, last: true
       end
     else
-      downcast_distinct_union_types(value, to_type, from_type)
+      union_lock_synchronize(value, from_type) do
+        downcast_distinct_union_types(value, to_type, from_type)
+      end
     end
   end
 
@@ -600,6 +611,8 @@ class Crystal::CodeGenVisitor
     end
 
     if needs_union_value_cast
+      union_lock_lock(value, from_type)
+
       # Compute the values that need a cast
       types_needing_cast = from_type.union_types.select do |vt|
         needs_value_cast_inside_union?(vt, to_type)
@@ -626,12 +639,15 @@ class Crystal::CodeGenVisitor
 
           position_at_end doesnt_match_label
         end
+        union_lock_unlock(value, from_type)
 
         final_value = cast_to_pointer value, to_type
         phi.add final_value, to_type, last: true
       end
     else
-      upcast_distinct_union_types(value, to_type, from_type)
+      union_lock_synchronize(value, from_type) do
+        upcast_distinct_union_types(value, to_type, from_type)
+      end
     end
   end
 

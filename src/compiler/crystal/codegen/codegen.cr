@@ -111,6 +111,18 @@ module Crystal
 
     include LLVMBuilderHelper
 
+    # TODO Remove
+    def load(*args)
+      # debug_codegen_log { caller.join("\n") }
+      builder.load(*args)
+    end
+
+    # TODO Remove
+    def store(*args)
+      # debug_codegen_log { caller[0..8].join("\n") }
+      builder.store(*args)
+    end
+
     getter llvm_mod : LLVM::Module
     getter builder : CrystalLLVMBuilder
     getter main : LLVM::Function
@@ -1358,6 +1370,9 @@ module Crystal
     end
 
     def init_value_storage(type : Type, ptr)
+      if type.is_a?(MixedUnionType)
+        union_lock_init(ptr)
+      end
       ptr
     end
 

@@ -17,11 +17,14 @@ module Crystal
     enum UnionsStrategy
       Collapsed
       Expanded
+      HLE
     end
 
     def unions_strategy
       if has_flag?("expanded_unions")
         UnionsStrategy::Expanded
+      elsif has_flag?("hle_unions")
+        UnionsStrategy::HLE
       else
         UnionsStrategy::Collapsed
       end
@@ -43,6 +46,21 @@ module Crystal
       end
 
       return result
+    end
+
+    # payload array size used to store the union kind
+    @mixed_unions_payload_size = Hash(MixedUnionType, Int32).new
+
+    def set_mixed_union_payload_size(union_type : MixedUnionType, payload_size : Int32)
+      raise "BUG: Unexpected call to set_mixed_union_payload_size. Program is being compiled with expanded unions." if @program.unions_strategy.expanded?
+
+      @mixed_unions_payload_size[union_type] = payload_size
+    end
+
+    def mixed_union_payload_size(union_type : MixedUnionType)
+      raise "BUG: Unexpected call to mixed_union_payload_size. Program is being compiled with expanded unions." if @program.unions_strategy.expanded?
+
+      @mixed_unions_payload_size[union_type]
     end
 
     # Index of components for each type that the union can hold.
@@ -75,6 +93,14 @@ module Crystal
         raise "BUG: looking for component value for #{type} in a #{self}."
       }
     end
+
+    def spin_lock_hle(llvm_mod, llvm_context)
+      llvm_mod.functions["spin_lock_hle"]? || llvm_mod.functions.add("spin_lock_hle", [llvm_context.int32.pointer], llvm_context.void)
+    end
+
+    def spin_unlock_hle(llvm_mod, llvm_context)
+      llvm_mod.functions["spin_unlock_hle"]? || llvm_mod.functions.add("spin_unlock_hle", ([llvm_context.int32.pointer]), llvm_context.void)
+    end
   end
 
   class LLVMTyper
@@ -93,7 +119,7 @@ module Crystal
         end
 
         case @program.unions_strategy
-        when .collapsed?
+        when .collapsed?, .hle?
           max_size = 0
           type.expand_union_types.each do |subtype|
             unless subtype.void?
@@ -108,8 +134,13 @@ module Crystal
           max_size = 1 if max_size == 0
 
           llvm_value_type = size_t.array(max_size)
+          @program.set_mixed_union_payload_size(type, max_size)
 
-          [@llvm_context.int32, llvm_value_type]
+          if @program.unions_strategy.collapsed?
+            [@llvm_context.int32, llvm_value_type]
+          else
+            [@llvm_context.int32, llvm_value_type, @llvm_context.int32]
+          end
         when .expanded?
           value_offsets = Hash(Type, Int32).new
           @program.set_mixed_union_value_offsets(type, value_offsets)
@@ -167,6 +198,75 @@ module Crystal
   end
 
   class CodeGenVisitor
+    def union_lock_pointer(union_pointer)
+      case @program.unions_strategy
+      when .hle?
+        aggregate_index(union_pointer, 2)
+      else
+        raise "BUG: union_lock_pointer called with no lock union strategy"
+      end
+    end
+
+    def union_lock_init(union_pointer)
+      case @program.unions_strategy
+      when .hle?
+        store llvm_context.int32.const_int(1), union_lock_pointer(union_pointer)
+      end
+    end
+
+    @@lock_count = 0
+
+    def codegen_call_spin_lock_hle(ptr)
+      @@lock_count &+= 1
+      debug_codegen_log { "lock-num: #{@@lock_count}\n" } # + caller[0..5].join("\n") }
+      call @program.spin_lock_hle(@llvm_mod, llvm_context), [ptr]
+    end
+
+    def codegen_call_spin_unlock_hle(ptr)
+      # debug_codegen_log { caller[0..5].join("\n") }
+      call @program.spin_unlock_hle(@llvm_mod, llvm_context), [ptr]
+    end
+
+    def union_lock_lock(union_pointer, type : UnionType)
+      # There is no lock for UnionType, only for MixedUnionType
+    end
+
+    def union_lock_lock(union_pointer, type : MixedUnionType)
+      case @program.unions_strategy
+      when .hle?
+        codegen_call_spin_lock_hle union_lock_pointer(union_pointer)
+      end
+    end
+
+    def union_lock_unlock(union_pointer, type : UnionType)
+      # There is no unlock for UnionType, only for MixedUnionType
+    end
+
+    def union_lock_unlock(union_pointer, type : MixedUnionType)
+      case @program.unions_strategy
+      when .hle?
+        codegen_call_spin_unlock_hle union_lock_pointer(union_pointer)
+      end
+    end
+
+    def union_lock_synchronize(union_pointer, type : MixedUnionType)
+      case @program.unions_strategy
+      when .hle?
+        lock_pointer = union_lock_pointer(union_pointer)
+        codegen_call_spin_lock_hle lock_pointer
+        res = yield
+        codegen_call_spin_unlock_hle lock_pointer
+        res
+      else
+        yield
+      end
+    end
+
+    def union_lock_synchronize(union_pointer, type : UnionType)
+      # There is no unlock for UnionType, only for MixedUnionType
+      yield
+    end
+
     def union_type_and_value_pointer(union_pointer, type : UnionType)
       raise "BUG: trying to access union_type_and_value_pointer of a #{type} from #{union_pointer}"
     end
@@ -177,6 +277,19 @@ module Crystal
         # In compacted (legacy) unions the value is stored always in the same place and the type id
         # is stored explictly in the first component
         {load(union_type_id(union_pointer)), union_value(union_pointer)}
+      when .hle?
+        # create a copy of the type_id and raw value within a lock/unlock section.
+        # Return the values that were thread-safetely read
+        type_id = llvm_alloca(llvm_context.int32)
+        raw_value = llvm_alloca(llvm_typer.size_t.array(@program.mixed_union_payload_size(type)))
+        # debug_codegen_log { raw_value.to_s }
+
+        union_lock_synchronize(union_pointer, type) do
+          store load(union_type_id(union_pointer)), type_id
+          store load(union_value(union_pointer)), raw_value
+        end
+
+        {load(type_id), raw_value}
       when .expanded?
         # In expanded unions the type id defines in which component the value needs to be looked up.
         # In case of a reference, the actual type id is stored in the first component of the referenced value.
@@ -330,10 +443,29 @@ module Crystal
 
     def store_in_union(union_type, union_pointer, value_type, value)
       case @program.unions_strategy
-      when .collapsed?
-        store type_id(value, value_type), union_type_id(union_pointer)
-        casted_value_ptr = cast_to_pointer(union_value(union_pointer), value_type)
-        store value, casted_value_ptr
+      when .collapsed?, .hle?
+        # issue about value been sometimes ref sometimes val? type_id has a lock... but the value...
+        if value_type.is_a?(MixedUnionType)
+          # puts caller.join("\n         ")
+          # pp! union_type, union_pointer, value_type, value
+          # debug_codegen_log { value_type.to_s + value.to_s + caller[0..5].join("\n") }
+          value_type_id, value_raw_ptr = union_type_and_value_pointer(value, value_type)
+          value_raw = load(value_raw_ptr)
+          # value_raw = value                          # when storing a union the value is the LLVM::Value already ....
+          # value_type_id = type_id(value, value_type) # the type is extracted from the llvm::value... it's odd
+          casted_value_ptr = union_value(union_pointer)
+        else
+          value_type_id = type_id(value, value_type)
+          casted_value_ptr = cast_to_pointer(union_value(union_pointer), value_type)
+          value_raw = value
+        end
+
+        union_lock_synchronize(union_pointer, union_type) do
+          store value_type_id, union_type_id(union_pointer)
+          # debug_codegen_log { value_type.class.to_s }
+          # debug_codegen_log { caller[0..5].join("\n") }
+          store value_raw, casted_value_ptr
+        end
       when .expanded?
         mutual_types = @program.all_concrete_types(union_type) & @program.all_concrete_types(value_type)
 
@@ -440,18 +572,20 @@ module Crystal
 
     def store_bool_in_union(union_type, union_pointer, value)
       case @program.unions_strategy
-      when .collapsed?
-        store type_id(value, @program.bool), union_type_id(union_pointer)
+      when .collapsed?, .hle?
+        union_lock_synchronize(union_pointer, union_type) do
+          store type_id(value, @program.bool), union_type_id(union_pointer)
 
-        # To store a boolean in a union
-        # we sign-extend it to the size in bits of the union
-        union_value_type = @llvm_typer.union_value_type(union_type)
-        union_size = @llvm_typer.size_of(union_value_type)
-        int_type = llvm_context.int((union_size * 8).to_i32)
+          # To store a boolean in a union
+          # we sign-extend it to the size in bits of the union
+          union_value_type = @llvm_typer.union_value_type(union_type)
+          union_size = @llvm_typer.size_of(union_value_type)
+          int_type = llvm_context.int((union_size * 8).to_i32)
 
-        bool_as_extended_int = builder.zext(value, int_type)
-        casted_value_ptr = bit_cast(union_value(union_pointer), int_type.pointer)
-        store bool_as_extended_int, casted_value_ptr
+          bool_as_extended_int = builder.zext(value, int_type)
+          casted_value_ptr = bit_cast(union_value(union_pointer), int_type.pointer)
+          store bool_as_extended_int, casted_value_ptr
+        end
       when .expanded?
         store_in_union(union_type, union_pointer, @program.bool, value)
       else
@@ -461,13 +595,15 @@ module Crystal
 
     def store_nil_in_union(union_pointer, target_type)
       case @program.unions_strategy
-      when .collapsed?
-        union_value_type = @llvm_typer.union_value_type(target_type)
-        value = union_value_type.null
+      when .collapsed?, .hle?
+        union_lock_synchronize(union_pointer, target_type) do
+          union_value_type = @llvm_typer.union_value_type(target_type)
+          value = union_value_type.null
 
-        store type_id(value, @program.nil), union_type_id(union_pointer)
-        casted_value_ptr = bit_cast union_value(union_pointer), union_value_type.pointer
-        store value, casted_value_ptr
+          store type_id(value, @program.nil), union_type_id(union_pointer)
+          casted_value_ptr = bit_cast union_value(union_pointer), union_value_type.pointer
+          store value, casted_value_ptr
+        end
       when .expanded?
         # Clean up reference component (if exists) to help GC.
         has_not_nil_reference_like = @program.all_concrete_types(target_type).any? { |t| t.reference_like? && !t.nil_type? }
@@ -488,9 +624,15 @@ module Crystal
 
     def assign_distinct_union_types(target_pointer, target_type, value_type, value)
       case @program.unions_strategy
-      when .collapsed?
+      when .collapsed?, .hle?
         casted_value = cast_to_pointer value, target_type
         store load(casted_value), target_pointer
+      when .hle?
+        union_lock_synchronize(target_pointer, target_type) do
+          # TODO might need to store value and type independantly here. is value_type leaf value?
+          casted_value = cast_to_pointer value, target_type
+          store load(casted_value), target_pointer
+        end
       when .expanded?
         store_in_union target_type, target_pointer, value_type, value
       else
@@ -499,8 +641,9 @@ module Crystal
     end
 
     def downcast_distinct_union_types(value, to_type : MixedUnionType, from_type : MixedUnionType)
+      # locked in caller in cast.cr
       case @program.unions_strategy
-      when .collapsed?
+      when .collapsed?, .hle?
         cast_to_pointer value, to_type
       when .expanded?
         union_ptr = declare_value_storage(to_type)
@@ -513,7 +656,8 @@ module Crystal
 
     def upcast_distinct_union_types(value, to_type : MixedUnionType, from_type : MixedUnionType)
       case @program.unions_strategy
-      when .collapsed?
+      when .collapsed?, .hle?
+        # TODO should be locked outside, together with the typeid
         cast_to_pointer value, to_type
       when .expanded?
         union_ptr = declare_value_storage(to_type)
