@@ -142,6 +142,9 @@ class Crystal::CodeGenVisitor
               discard = true
             else
               global.initializer = llvm_type(type).null
+              if type.passed_by_value?
+                init_value_storage(type, global)
+              end
               assign global, type, node.type, @last
             end
 

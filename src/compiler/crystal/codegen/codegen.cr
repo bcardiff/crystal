@@ -1920,6 +1920,7 @@ module Crystal
         end
       end
       memset @last, int8(0), struct_type.size
+      init_value_storage(type, @last)
       type_ptr = @last
       run_instance_vars_initializers(type, type, type_ptr)
       @last = type_ptr
