@@ -1366,13 +1366,31 @@ module Crystal
 
     def declare_value_storage(type : Type, name = "")
       ptr = llvm_alloca(llvm_type(type), name)
-      init_value_storage(type, ptr)
+
+      if type.passed_by_value?
+        # If the storage is for a reference type we don't need
+        # to initialize the content. That will be handled by
+        # `#init_value_storage` called from `#allocate_aggregate`
+        init_value_storage(type, ptr)
+      end
+
+      ptr
     end
 
     def init_value_storage(type : Type, ptr)
       if type.is_a?(MixedUnionType)
         union_lock_init(ptr)
       end
+
+      if type.is_a?(InstanceVarContainer)
+        type.instance_vars.each do |name, var|
+          if var.type.passed_by_value?
+            ivar_ptr = instance_var_ptr(type, name, ptr)
+            init_value_storage(var.type, ivar_ptr)
+          end
+        end
+      end
+
       ptr
     end
 
