@@ -94,12 +94,16 @@ module Crystal
       }
     end
 
+    def spin_init_hle(llvm_mod, llvm_context)
+      llvm_mod.functions["spin_init_hle"]? || llvm_mod.functions.add("spin_init_hle", [llvm_context.int32.pointer], llvm_context.void)
+    end
+
     def spin_lock_hle(llvm_mod, llvm_context)
       llvm_mod.functions["spin_lock_hle"]? || llvm_mod.functions.add("spin_lock_hle", [llvm_context.int32.pointer], llvm_context.void)
     end
 
     def spin_unlock_hle(llvm_mod, llvm_context)
-      llvm_mod.functions["spin_unlock_hle"]? || llvm_mod.functions.add("spin_unlock_hle", ([llvm_context.int32.pointer]), llvm_context.void)
+      llvm_mod.functions["spin_unlock_hle"]? || llvm_mod.functions.add("spin_unlock_hle", [llvm_context.int32.pointer], llvm_context.void)
     end
   end
 
@@ -210,8 +214,12 @@ module Crystal
     def union_lock_init(union_pointer)
       case @program.unions_strategy
       when .hle?
-        store llvm_context.int32.const_int(1), union_lock_pointer(union_pointer)
+        codegen_call_spin_init_hle(union_lock_pointer(union_pointer))
       end
+    end
+
+    def codegen_call_spin_init_hle(ptr)
+      call @program.spin_init_hle(@llvm_mod, llvm_context), [ptr]
     end
 
     @@lock_count = 0

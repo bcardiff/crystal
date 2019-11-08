@@ -687,6 +687,14 @@ module Crystal
       elsif method_type.no_return?
         unreachable
       else
+        # create a copy that will be freed at the time of returning
+        # TODO should handle nested values
+        if type.is_a?(MixedUnionType) && @program.unions_strategy.hle?
+          pointer = declare_value_storage(type)
+          store_in_union(type, pointer, type, @last)
+          @last = pointer
+        end
+
         value = upcast(@last, method_type, type)
         ret to_rhs(value, method_type)
       end
@@ -1383,7 +1391,7 @@ module Crystal
       end
 
       if type.is_a?(InstanceVarContainer)
-        type.instance_vars.each do |name, var|
+        type.all_instance_vars.each do |name, var|
           if var.type.passed_by_value?
             ivar_ptr = instance_var_ptr(type, name, ptr)
             init_value_storage(var.type, ivar_ptr)
@@ -1391,7 +1399,27 @@ module Crystal
         end
       end
 
+      # TODO init recursively tuples and named tuples
+      # TODO check if structs are initialized fine
+
       ptr
+    end
+
+    def store_value(type : Type, llvm_value, target_pointer)
+      if @program.unions_strategy.hle?
+        if type.is_a?(MixedUnionType)
+          # TODO would be better to extract type_id and value directly
+          # from the value since it's read only/already loaded llvm value
+          value_pointer = declare_value_storage(type)
+          store llvm_value, value_pointer
+          store_in_union(type, target_pointer, type, value_pointer)
+        else
+          # TODO init recursively
+          store llvm_value, target_pointer
+        end
+      else
+        store llvm_value, target_pointer
+      end
     end
 
     def declare_var(var)

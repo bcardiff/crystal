@@ -476,8 +476,7 @@ class Crystal::CodeGenVisitor
       if arg.type.passed_by_value?
         # Create an alloca and store it there, so assign works well
         pointer2 = declare_value_storage(arg.type)
-        # TODO need to visit internal structure of value
-        store value, pointer2
+        store_value arg.type, value, pointer2
         value = pointer2
       end
     else
@@ -503,8 +502,7 @@ class Crystal::CodeGenVisitor
           if arg.type.passed_by_value? && !context.fun.attributes(index + 1).by_val?
             # Create an alloca and store it there, so assign works well
             pointer2 = declare_value_storage(arg.type)
-            # TODO need to visit internal structure of value
-            store value, pointer2
+            store_value arg.type, value, pointer2
             value = pointer2
           end
         else
@@ -512,8 +510,7 @@ class Crystal::CodeGenVisitor
             # For pass-by-value we create an alloca so the value
             # is behind a pointer, as everywhere else
             pointer = declare_value_storage(var_type, arg.name)
-            # TODO need to visit internal structure of value
-            store value, pointer
+            store_value var_type, value, pointer
             context.vars[arg.name] = LLVMVar.new(pointer, var_type)
             return
           else

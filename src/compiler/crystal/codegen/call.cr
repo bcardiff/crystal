@@ -516,7 +516,10 @@ class Crystal::CodeGenVisitor
         unreachable
       when .passed_by_value?
         if @needs_value
-          union = declare_value_storage(type)
+          # results should have been copied by the caller
+          # to an unlocked value in case of the unions.
+          # it is safe to copy the whole value directly
+          union = llvm_alloca(llvm_type(type))
           store @last, union
           @last = union
         else

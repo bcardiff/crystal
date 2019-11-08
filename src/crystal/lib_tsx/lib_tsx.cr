@@ -9,3 +9,7 @@ lib LibTSX
   fun spin_lock_rtm(lock : UInt32*)
   fun spin_unlock_rtm(lock : UInt32*)
 end
+
+fun spin_init_hle(lock : UInt32*) : Void
+  lock.value = 1
+end
