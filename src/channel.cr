@@ -1,6 +1,6 @@
 require "fiber"
 require "crystal/spin_lock"
-require "crystal/static_list"
+require "crystal/pointer_linked_list"
 
 # A `Channel` enables concurrent communication between fibers.
 #
@@ -104,7 +104,8 @@ class Channel(T)
 
   # :nodoc:
   struct Sender(T)
-    include Crystal::StaticList::Node(self)
+    include Crystal::PointerLinkedList::Node
+
     property fiber : Fiber
     property data : T
     property state : DeliveryState
@@ -119,7 +120,8 @@ class Channel(T)
 
   # :nodoc:
   struct Receiver(T)
-    include Crystal::StaticList::Node(self)
+    include Crystal::PointerLinkedList::Node
+
     property fiber : Fiber
     property data : T
     property state : DeliveryState
@@ -135,11 +137,8 @@ class Channel(T)
   def initialize(@capacity = 0)
     @closed = false
 
-    @senders = uninitialized Crystal::StaticList(Sender(T))
-    @senders.init
-
-    @receivers = uninitialized Crystal::StaticList(Receiver(T))
-    @receivers.init
+    @senders = Crystal::PointerLinkedList(Sender(T)).new
+    @receivers = Crystal::PointerLinkedList(Receiver(T)).new
 
     if capacity > 0
       @queue = Deque(T).new(capacity)
@@ -147,17 +146,14 @@ class Channel(T)
   end
 
   def close : Nil
-    sender_list = uninitialized Crystal::StaticList(Sender(T))
-    sender_list.init
-
-    receiver_list = uninitialized Crystal::StaticList(Receiver(T))
-    receiver_list.init
+    sender_list = Crystal::PointerLinkedList(Sender(T)).new
+    receiver_list = Crystal::PointerLinkedList(Receiver(T)).new
 
     @lock.sync do
       @closed = true
 
-      @senders.list_append_to pointerof(sender_list)
-      @receivers.list_append_to pointerof(receiver_list)
+      @senders.append_to sender_list
+      @receivers.append_to receiver_list
     end
 
     sender_list.each do |sender_ptr|
