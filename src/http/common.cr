@@ -1,6 +1,6 @@
 require "mime/media_type"
 {% if !flag?(:without_zlib) %}
-  require "flate"
+  require "compress/deflate"
   require "gzip"
 {% end %}
 
@@ -64,7 +64,7 @@ module HTTP
             when "gzip"
               body = Gzip::Reader.new(body, sync_close: true)
             when "deflate"
-              body = Flate::Reader.new(body, sync_close: true)
+              body = Compress::Deflate::Reader.new(body, sync_close: true)
             end
           {% end %}
         end
