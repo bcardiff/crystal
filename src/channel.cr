@@ -401,15 +401,6 @@ class Channel(T)
     return i, m
   end
 
-  @[Deprecated("Use Channel.non_blocking_select")]
-  def self.select(ops : Indexable(SelectAction), has_else)
-    # The overload of Channel.select(Indexable(SelectAction), Bool)
-    # is used by LiteralExpander with the second argument as `true`.
-    # This overload is kept as a transition, but 0.32 will emit calls to
-    # Channel.select or Channel.non_blocking_select directly
-    non_blocking_select(ops)
-  end
-
   def self.non_blocking_select(*ops : SelectAction)
     self.non_blocking_select ops
   end

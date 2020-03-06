@@ -585,9 +585,9 @@ describe "unbuffered" do
     Channel.select(ch1.receive_select_action, ch2.receive_select_action).should eq({0, 123})
   end
 
-  it "works with select else" do
+  it "works with non_blocking_select" do
     ch1 = Channel(Int32).new
-    Channel.select({ch1.receive_select_action}, true).should eq({1, Channel::NotReady.new})
+    Channel.non_blocking_select({ch1.receive_select_action}).should eq({1, Channel::NotReady.new})
   end
 
   it "can send and receive nil" do
