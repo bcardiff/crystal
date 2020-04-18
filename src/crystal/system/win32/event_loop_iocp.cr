@@ -56,7 +56,7 @@ struct Crystal::Event
     Crystal::EventLoop.dequeue(@fiber)
   end
 
-  def add(time_span : Time::Span?) : Nil
+  def add(time_span : TimeSpan?) : Nil
     Crystal::EventLoop.enqueue(@fiber)
   end
 end

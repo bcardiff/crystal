@@ -6,8 +6,8 @@ module IO::Evented
   @read_timed_out = false
   @write_timed_out = false
 
-  @read_timeout : Time::Span?
-  @write_timeout : Time::Span?
+  @read_timeout : TimeSpan?
+  @write_timeout : TimeSpan?
 
   @readers = Crystal::ThreadLocalValue(Deque(Fiber)).new
   @writers = Crystal::ThreadLocalValue(Deque(Fiber)).new
@@ -16,12 +16,12 @@ module IO::Evented
   @write_event = Crystal::ThreadLocalValue(Crystal::Event).new
 
   # Returns the time to wait when reading before raising an `IO::TimeoutError`.
-  def read_timeout : Time::Span?
+  def read_timeout : TimeSpan?
     @read_timeout
   end
 
   # Sets the time to wait when reading before raising an `IO::TimeoutError`.
-  def read_timeout=(timeout : Time::Span?) : ::Time::Span?
+  def read_timeout=(timeout : TimeSpan?) : ::TimeSpan?
     @read_timeout = timeout
   end
 
@@ -32,12 +32,12 @@ module IO::Evented
   end
 
   # Returns the time to wait when writing before raising an `IO::TimeoutError`.
-  def write_timeout : Time::Span?
+  def write_timeout : TimeSpan?
     @write_timeout
   end
 
   # Sets the time to wait when writing before raising an `IO::TimeoutError`.
-  def write_timeout=(timeout : Time::Span?) : ::Time::Span?
+  def write_timeout=(timeout : TimeSpan?) : ::TimeSpan?
     @write_timeout = timeout
   end
 

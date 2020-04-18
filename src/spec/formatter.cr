@@ -19,7 +19,7 @@ module Spec
     def finish(elapsed_time, aborted)
     end
 
-    def print_results(elapsed_time : Time::Span, aborted : Bool)
+    def print_results(elapsed_time : TimeSpan, aborted : Bool)
     end
   end
 
@@ -34,7 +34,7 @@ module Spec
       @io.puts
     end
 
-    def print_results(elapsed_time : Time::Span, aborted : Bool)
+    def print_results(elapsed_time : TimeSpan, aborted : Bool)
       Spec.root_context.print_results(elapsed_time, aborted)
     end
   end
@@ -90,7 +90,7 @@ module Spec
       @io.puts Spec.color(@last_description, result.kind)
     end
 
-    def print_results(elapsed_time : Time::Span, aborted : Bool)
+    def print_results(elapsed_time : TimeSpan, aborted : Bool)
       Spec.root_context.print_results(elapsed_time, aborted)
     end
   end

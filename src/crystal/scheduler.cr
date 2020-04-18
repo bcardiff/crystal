@@ -48,7 +48,7 @@ class Crystal::Scheduler
     Thread.current.scheduler.resume(fiber)
   end
 
-  def self.sleep(time : Time::Span) : Nil
+  def self.sleep(time : TimeSpan) : Nil
     Thread.current.scheduler.sleep(time)
   end
 
@@ -157,7 +157,7 @@ class Crystal::Scheduler
     {% end %}
   end
 
-  protected def sleep(time : Time::Span) : Nil
+  protected def sleep(time : TimeSpan) : Nil
     @current.resume_event.add(time)
     reschedule
   end

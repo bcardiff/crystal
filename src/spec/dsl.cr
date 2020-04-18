@@ -106,7 +106,7 @@ module Spec
   end
 
   # :nodoc:
-  def self.to_human(span : Time::Span)
+  def self.to_human(span : TimeSpan)
     total_milliseconds = span.total_milliseconds
     if total_milliseconds < 1
       return "#{(span.total_milliseconds * 1000).round.to_i} microseconds"
@@ -257,7 +257,7 @@ module Spec
     @@after_suite.try &.reverse_each &.call
   end
 
-  @@start_time : Time::Span? = nil
+  @@start_time : TimeSpan? = nil
 
   # :nodoc:
   def self.run

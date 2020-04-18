@@ -17,8 +17,8 @@ module Benchmark
       # After #execute, these are populated with the resulting statistics.
       property items : Array(Entry)
 
-      @warmup_time : Time::Span
-      @calculation_time : Time::Span
+      @warmup_time : TimeSpan
+      @calculation_time : TimeSpan
 
       def initialize(calculation = 5, warmup = 2, interactive = STDOUT.tty?)
         @interactive = !!interactive
@@ -80,7 +80,7 @@ module Benchmark
         @items.each do |item|
           GC.collect
 
-          measurements = [] of Time::Span
+          measurements = [] of TimeSpan
           bytes = 0_i64
           cycles = 0_i64
 

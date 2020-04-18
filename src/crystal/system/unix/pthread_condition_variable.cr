@@ -33,7 +33,7 @@ class Thread
       raise RuntimeError.from_errno("pthread_cond_wait", Errno.new(ret)) unless ret == 0
     end
 
-    def wait(mutex : Thread::Mutex, time : Time::Span)
+    def wait(mutex : Thread::Mutex, time : TimeSpan)
       ret =
         {% if flag?(:darwin) %}
           ts = uninitialized LibC::Timespec

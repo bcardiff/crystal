@@ -172,7 +172,7 @@ private def build_report(timestamp = nil)
   formatter = Spec::JUnitFormatter.new(output)
   formatter.started_at = timestamp if timestamp
   yield formatter
-  formatter.finish(Time::Span.zero, false)
+  formatter.finish(TimeSpan.zero, false)
   output.to_s.chomp
 end
 

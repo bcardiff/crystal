@@ -135,7 +135,7 @@ module Benchmark
   # ```
   # Benchmark.realtime { "a" * 100_000 } # => 00:00:00.0005840
   # ```
-  def realtime : Time::Span
+  def realtime : TimeSpan
     Time.measure { yield }
   end
 

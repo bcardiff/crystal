@@ -683,10 +683,10 @@ class Channel(T)
     include SelectAction(Nil)
 
     # Total amount of time to wait
-    @timeout : Time::Span
+    @timeout : TimeSpan
     @select_context : SelectContext(Nil)?
 
-    def initialize(@timeout : Time::Span)
+    def initialize(@timeout : TimeSpan)
     end
 
     def execute : DeliveryState
@@ -743,6 +743,6 @@ end
 #
 # NOTE: Using negative amounts will cause the timeout to not trigger.
 #
-def timeout_select_action(timeout : Time::Span)
+def timeout_select_action(timeout : TimeSpan)
   Channel::TimeoutAction.new(timeout)
 end

@@ -20,7 +20,7 @@ module Spec
     description : String,
     file : String,
     line : Int32,
-    elapsed : Time::Span?,
+    elapsed : TimeSpan?,
     exception : Exception?
 
   # :nodoc:

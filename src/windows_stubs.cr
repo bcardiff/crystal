@@ -94,6 +94,6 @@ def sleep(seconds : Number)
   sleep(seconds.seconds)
 end
 
-def sleep(time : Time::Span)
+def sleep(time : TimeSpan)
   LibC.Sleep(time.total_milliseconds)
 end

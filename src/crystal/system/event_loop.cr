@@ -25,7 +25,7 @@ struct Crystal::Event
   # def free : Nil
 
   # Adds a new timeout to this event.
-  # def add(time_span : Time::Span?) : Nil
+  # def add(time_span : TimeSpan?) : Nil
 end
 
 {% if flag?(:unix) %}

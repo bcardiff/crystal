@@ -146,7 +146,7 @@ class Socket < IO
   # Tries to connect to a remote address. Yields an `IO::TimeoutError` or an
   # `Socket::ConnectError` error if the connection failed.
   def connect(addr, timeout = nil)
-    timeout = timeout.seconds unless timeout.is_a? Time::Span | Nil
+    timeout = timeout.seconds unless timeout.is_a? TimeSpan | Nil
     loop do
       if LibC.connect(fd, addr, addr.size) == 0
         return

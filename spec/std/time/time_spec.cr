@@ -227,7 +227,7 @@ describe Time do
   describe "#shift" do
     it "adds hours, minutes, seconds" do
       t1 = Time.utc(2002, 2, 25, 15, 25, 13)
-      t2 = t1 + Time::Span.new(hours: 3, minutes: 54, seconds: 1)
+      t2 = t1 + TimeSpan.new(hours: 3, minutes: 54, seconds: 1)
 
       t2.should eq Time.utc(2002, 2, 25, 19, 19, 14)
     end
@@ -236,7 +236,7 @@ describe Time do
       t1 = Time.utc(9980, 2, 25, 15, 25, 13)
 
       expect_raises ArgumentError do
-        t1 + Time::Span.new(nanoseconds: Int64::MAX)
+        t1 + TimeSpan.new(nanoseconds: Int64::MAX)
       end
     end
 
@@ -244,7 +244,7 @@ describe Time do
       t1 = Time.utc(1, 2, 25, 15, 25, 13)
 
       expect_raises ArgumentError do
-        t1 + Time::Span.new(nanoseconds: Int64::MIN)
+        t1 + TimeSpan.new(nanoseconds: Int64::MIN)
       end
     end
 
@@ -439,7 +439,7 @@ describe Time do
 
   it "#time_of_day" do
     t = Time.utc 2014, 10, 30, 21, 18, 13
-    t.time_of_day.should eq(Time::Span.new(hours: 21, minutes: 18, seconds: 13))
+    t.time_of_day.should eq(TimeSpan.new(hours: 21, minutes: 18, seconds: 13))
   end
 
   describe "#day_of_week" do

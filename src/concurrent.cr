@@ -19,7 +19,7 @@ end
 #
 # While this fiber is waiting this time, other ready-to-execute
 # fibers might start their execution.
-def sleep(time : Time::Span)
+def sleep(time : TimeSpan)
   Crystal::Scheduler.sleep(time)
 end
 

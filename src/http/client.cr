@@ -273,7 +273,7 @@ class HTTP::Client
     @read_timeout = read_timeout.to_f
   end
 
-  # Sets the read timeout with a `Time::Span`, to wait when reading before raising an `IO::TimeoutError`.
+  # Sets the read timeout with a `TimeSpan`, to wait when reading before raising an `IO::TimeoutError`.
   #
   # ```
   # require "http/client"
@@ -286,7 +286,7 @@ class HTTP::Client
   #   puts "Timeout!"
   # end
   # ```
-  def read_timeout=(read_timeout : Time::Span)
+  def read_timeout=(read_timeout : TimeSpan)
     self.read_timeout = read_timeout.total_seconds
   end
 
@@ -297,8 +297,8 @@ class HTTP::Client
   end
 
   # Sets the write timeout - if any chunk of request is not written
-  # within the provided `Time::Span`,  `IO::TimeoutError` exception is raised.
-  def write_timeout=(write_timeout : Time::Span)
+  # within the provided `TimeSpan`,  `IO::TimeoutError` exception is raised.
+  def write_timeout=(write_timeout : TimeSpan)
     self.write_timeout = write_timeout.total_seconds
   end
 
@@ -319,7 +319,7 @@ class HTTP::Client
     @connect_timeout = connect_timeout.to_f
   end
 
-  # Sets the open timeout with a `Time::Span` to wait when connecting, before raising an `IO::TimeoutError`.
+  # Sets the open timeout with a `TimeSpan` to wait when connecting, before raising an `IO::TimeoutError`.
   #
   # ```
   # require "http/client"
@@ -332,7 +332,7 @@ class HTTP::Client
   #   puts "Timeout!"
   # end
   # ```
-  def connect_timeout=(connect_timeout : Time::Span)
+  def connect_timeout=(connect_timeout : TimeSpan)
     self.connect_timeout = connect_timeout.total_seconds
   end
 
@@ -357,7 +357,7 @@ class HTTP::Client
 
   # **This method has no effect right now**
   #
-  # Sets the number of seconds to wait when resolving a name with a `Time::Span`, before raising an `IO::TimeoutError`.
+  # Sets the number of seconds to wait when resolving a name with a `TimeSpan`, before raising an `IO::TimeoutError`.
   #
   # ```
   # require "http/client"
@@ -370,7 +370,7 @@ class HTTP::Client
   #   puts "Timeout!"
   # end
   # ```
-  def dns_timeout=(dns_timeout : Time::Span)
+  def dns_timeout=(dns_timeout : TimeSpan)
     self.dns_timeout = dns_timeout.total_seconds
   end
 

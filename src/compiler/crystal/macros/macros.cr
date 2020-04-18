@@ -12,7 +12,7 @@ class Crystal::Program
   # together with the time it took to compile them and whether a previous
   # compilation was reused.
   # The elapsed time is only needed for stats.
-  record CompiledMacroRun, filename : String, elapsed : Time::Span, reused : Bool
+  record CompiledMacroRun, filename : String, elapsed : TimeSpan, reused : Bool
   property compiled_macros_cache = {} of String => CompiledMacroRun
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)

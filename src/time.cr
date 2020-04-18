@@ -185,7 +185,7 @@ require "crystal/system/time"
 # t2 - t1 # => ?
 # ```
 #
-# The resulting `Time::Span` could be anything, even negative, if the
+# The resulting `TimeSpan` could be anything, even negative, if the
 # computer's wall clock has changed between both calls.
 #
 # As an alternative, the operating system also provides a monotonic clock.
@@ -263,7 +263,7 @@ struct Time
   DAYS_PER_4_YEARS = 365*4 + 1
 
   # This constant is defined to be "1970-01-01 00:00:00 UTC".
-  # Can be used to create a `Time::Span` that represents an Unix Epoch time duration.
+  # Can be used to create a `TimeSpan` that represents an Unix Epoch time duration.
   #
   # ```
   # Time.utc - Time::UNIX_EPOCH
@@ -313,7 +313,7 @@ struct Time
   # Returns a reading from the monotonic clock to measure elapsed time.
   #
   # Values from the monotonic clock and wall clock are not comparable.
-  # This method does not return a `Time` instance but a `Time::Span` amounting
+  # This method does not return a `Time` instance but a `TimeSpan` amounting
   # to the number of nanoseconds elapsed since the unspecified starting point
   # of the monotonic clock.
   # The returned values are strictly linearly increasing.
@@ -334,9 +334,9 @@ struct Time
   # ```
   #
   # The execution time of a block can be measured using `.measure`.
-  def self.monotonic : Time::Span
+  def self.monotonic : TimeSpan
     seconds, nanoseconds = Crystal::System::Time.monotonic
-    Time::Span.new(seconds: seconds, nanoseconds: nanoseconds)
+    TimeSpan.new(seconds: seconds, nanoseconds: nanoseconds)
   end
 
   # Measures the execution time of *block*.
@@ -350,7 +350,7 @@ struct Time
   # end
   # elapsed_time # => 20.milliseconds (approximately)
   # ```
-  def self.measure(&block : ->) : Time::Span
+  def self.measure(&block : ->) : TimeSpan
     start = monotonic
     yield
     monotonic - start
@@ -560,14 +560,14 @@ struct Time
   # Returns a copy of this `Time` with *span* added.
   #
   # See `#shift` for details.
-  def +(span : Time::Span) : Time
+  def +(span : TimeSpan) : Time
     shift span.to_i, span.nanoseconds
   end
 
   # Returns a copy of this `Time` with *span* subtracted.
   #
   # See `#shift` for details.
-  def -(span : Time::Span) : Time
+  def -(span : TimeSpan) : Time
     shift -span.to_i, -span.nanoseconds
   end
 
@@ -735,7 +735,7 @@ struct Time
     Time.utc(seconds: seconds, nanoseconds: self.nanosecond).shift(0, nanoseconds).to_local_in(location)
   end
 
-  # Returns a `Time::Span` amounting to the duration between *other* and `self`.
+  # Returns a `TimeSpan` amounting to the duration between *other* and `self`.
   #
   # The time span is negative if `self` is before *other*.
   #
@@ -743,7 +743,7 @@ struct Time
   # the instant time-line.
   # The difference between local date-time representations may equal to a
   # different duration, depending on time zone transitions.
-  def -(other : Time) : Time::Span
+  def -(other : Time) : TimeSpan
     Span.new(
       seconds: total_seconds - other.total_seconds,
       nanoseconds: nanosecond - other.nanosecond,
@@ -905,12 +905,12 @@ struct Time
 
   # Returns the duration between this `Time` and midnight of the same day.
   #
-  # This is equivalent to creating a `Time::Span` from the time-of-day fields:
+  # This is equivalent to creating a `TimeSpan` from the time-of-day fields:
   #
   # ```
-  # time.time_of_day == Time::Span.new(hours: time.hour, minutes: time.minute, seconds: time.second, nanoseconds: time.nanosecond)
+  # time.time_of_day == TimeSpan.new(hours: time.hour, minutes: time.minute, seconds: time.second, nanoseconds: time.nanosecond)
   # ```
-  def time_of_day : Time::Span
+  def time_of_day : TimeSpan
     Span.new(nanoseconds: NANOSECONDS_PER_SECOND * (offset_seconds % SECONDS_PER_DAY) + nanosecond)
   end
 
