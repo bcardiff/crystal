@@ -125,7 +125,7 @@ jobs:
       - run: echo 'export CURRENT_TAG="$CIRCLE_TAG"' >> $BASH_ENV
       - run: bin/ci prepare_build
       - run: bin/ci with_build_env 'make crystal'
-      - run: bin/ci with_build_env 'CRYSTAL_WORKERS=4 make std_spec threads=1 FLAGS="-D preview_mt" junit_output=.junit/std_spec.xml'
+      - run: bin/ci with_build_env 'CRYSTAL_WORKERS=4 make std_spec threads=1 verbose=1 FLAGS="-D preview_mt" junit_output=.junit/std_spec.xml'
       - run:
           when: always
           command: |
@@ -516,29 +516,33 @@ workflows:
   version: 2
   test_all_platforms:
     jobs:
-      - test_linux:
+      # - test_linux:
+      #     filters: &unless_maintenance
+      #       branches:
+      #         ignore:
+      #           - /release\/.+/
+      #           - /.*\bci\b.*/
+      # - test_linux32_std:
+      #     filters: *unless_maintenance
+      # - test_alpine:
+      #     filters: *unless_maintenance
+      # - test_darwin:
+      #     filters: *unless_maintenance
+      - test_preview_mt:
           filters: &unless_maintenance
             branches:
               ignore:
                 - /release\/.+/
                 - /.*\bci\b.*/
-      - test_linux32_std:
-          filters: *unless_maintenance
-      - test_alpine:
-          filters: *unless_maintenance
-      - test_darwin:
-          filters: *unless_maintenance
-      - test_preview_mt:
-          filters: *unless_maintenance
-      - check_format:
-          filters: *unless_maintenance
-      - sync_docs_s3:
-          filters:
-            branches:
-              only:
-                - master
-          requires:
-            - test_linux
+      # - check_format:
+      #     filters: *unless_maintenance
+      # - sync_docs_s3:
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      #     requires:
+      #       - test_linux
 
   tagged_release:
     jobs:
