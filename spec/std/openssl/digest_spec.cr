@@ -1,4 +1,5 @@
 require "spec"
+require "../digest/algorithm"
 require "../../../src/openssl"
 
 describe OpenSSL::Digest do
@@ -16,6 +17,8 @@ describe OpenSSL::Digest do
       digest << "fooø"
       digest.hexdigest.should eq(expected)
     end
+
+    acts_as_digest_algorithm OpenSSL::Digest.new(algorithm)
   end
 
   it "can't call #final more than once" do

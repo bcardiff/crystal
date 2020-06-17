@@ -251,4 +251,10 @@ class Digest::MD5 < Digest::Base
   def digest_size : Int32
     16
   end
+
+  extend ::Digest::Algorithm
+
+  def self.init_context
+    new
+  end
 end

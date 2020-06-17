@@ -83,5 +83,11 @@ module OpenSSL
     def to_unsafe
       @ctx
     end
+
+    include ::Digest::Algorithm
+
+    def init_context
+      Digest.new(name)
+    end
   end
 end
