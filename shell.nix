@@ -89,41 +89,24 @@ let
     };
   }."llvm_${toString llvm}");
 
-  libatomic_ops = builtins.fetchurl {
-    url = "https://github.com/ivmai/libatomic_ops/releases/download/v7.6.10/libatomic_ops-7.6.10.tar.gz";
-    sha256 = "1bwry043f62pc4mgdd37zx3fif19qyrs8f5bw7qxlmkzh5hdyzjq";
-  };
-
-  boehmgc = pkgs.stdenv.mkDerivation rec {
-    pname = "boehm-gc";
-    version = "8.0.4";
-
-    src = builtins.fetchTarball {
-      url = "https://github.com/ivmai/bdwgc/releases/download/v${version}/gc-${version}.tar.gz";
-      sha256 = "16ic5dwfw51r5lcl88vx3qrkg3g2iynblazkri3sl9brnqiyzjk7";
-    };
-
+  # Provide Boehmgc 8.0.4 with libatomic_ops and mt support
+  boehmgc = pkgs.boehmgc.overrideAttrs (oldAttrs: rec {
     patches = [
+      oldAttrs.patches
       (pkgs.fetchpatch {
         url = "https://github.com/ivmai/bdwgc/commit/5668de71107022a316ee967162bc16c10754b9ce.patch";
         sha256 = "02f0rlxl4fsqk1xiq0pabkhwydnmyiqdik2llygkc6ixhxbii8xw";
       })
     ];
 
-    postUnpack = ''
-      mkdir $sourceRoot/libatomic_ops
-      tar -xzf ${libatomic_ops} -C $sourceRoot/libatomic_ops --strip-components 1
-    '';
+    buildInputs = [ pkgs.libatomic_ops ];
 
     configureFlags = [
       "--disable-debug"
       "--disable-dependency-tracking"
-      "--disable-shared"
       "--enable-large-config"
     ];
-
-    enableParallelBuilding = true;
-  };
+  });
 
   stdLibDeps = with pkgs; [
       boehmgc gmp libevent libiconv libxml2 libyaml openssl pcre zlib
