@@ -221,6 +221,8 @@ struct Exception::CallStack
   {% if flag?(:debug) %}
     # load dwarf on start up of the program when compiled with --debug
     # this will make dwarf available on print_frame that is used on __crystal_sigfault_handler
+    {% if flag?(:preview_mt) %} GC.disable {% end %}
     load_dwarf
+    {% if flag?(:preview_mt) %} GC.enable {% end %}
   {% end %}
 end
