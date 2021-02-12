@@ -335,4 +335,22 @@ describe "Semantic: named args" do
       foo(x: x)
       )) { no_return }
   end
+
+  CRYSTAL_KEYWORDS.each do |kw|
+    next if kw.in? %w(select struct enum end)
+
+    it "keyword #{kw} can be used as external arguments within macros" do
+      assert_type(%(
+      macro foo
+        call #{kw}: 1
+      end
+
+      def call(#{kw} arg)
+        arg
+      end
+
+      foo
+      )) { int32 }
+    end
+  end
 end

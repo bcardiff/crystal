@@ -18,7 +18,7 @@ private def it_parses(string, expected_node, file = __FILE__, line = __LINE__)
       local_expected_node = local_expected_node.map(&.as(ASTNode))
     end
 
-    node.should eq(Expressions.from(local_expected_node))
+    node.should eq(Expressions.from(local_expected_node)), file: file, line: line
   end
 end
 
@@ -204,14 +204,9 @@ module Crystal
     assert_syntax_error "f.[]= { |bar| }", "setter method '[]=' cannot be called with a block"
 
     # #5895, #6042, #5997
-    %w(
-      begin nil true false yield with abstract
-      def macro require case select if unless include
-      extend class struct module enum while until return
-      next break lib fun alias pointerof sizeof
-      instance_sizeof offsetof typeof private protected asm out
-      end self in
-    ).each do |kw|
+    CRYSTAL_KEYWORDS.each do |kw|
+      next if kw.in? %w(do else elsif when rescue ensure)
+
       assert_syntax_error "def foo(#{kw}); end", "cannot use '#{kw}' as an argument name", 1, 9
       assert_syntax_error "def foo(foo #{kw}); end", "cannot use '#{kw}' as an argument name", 1, 13
       it_parses "def foo(#{kw} foo); end", Def.new("foo", [Arg.new("foo", external_name: kw.to_s)])
@@ -1539,8 +1534,9 @@ module Crystal
     it_parses "foo 1.bar do\nend", Call.new(nil, "foo", args: [Call.new(1.int32, "bar")] of ASTNode, block: Block.new)
     it_parses "return 1.bar do\nend", Return.new(Call.new(1.int32, "bar", block: Block.new))
 
-    %w(begin nil true false yield with abstract def macro require case if unless include extend class struct module enum while
-      until return next break lib fun alias pointerof sizeof instance_sizeof offsetof typeof private protected asm end do else elsif when rescue ensure).each do |keyword|
+    CRYSTAL_KEYWORDS.each do |keyword|
+      next if keyword.in? %w(out)
+
       it_parses "#{keyword} : Int32", TypeDeclaration.new(keyword.var, "Int32".path)
       it_parses "property #{keyword} : Int32", Call.new(nil, "property", TypeDeclaration.new(keyword.var, "Int32".path))
     end
@@ -1850,7 +1846,11 @@ module Crystal
       end
       CR
 
-    it_parses "macro foo; bar class: 1; end", Macro.new("foo", body: MacroLiteral.new(" bar class: 1; "))
+    CRYSTAL_KEYWORDS.each do |kw|
+      next if kw.in? %w(extend select struct enum end)
+      next if kw.in? %w(else elsif ensure)
+      it_parses "macro foo; bar #{kw}: 1; end", Macro.new("foo", body: MacroLiteral.new(" bar #{kw}: 1; "))
+    end
 
     describe "end locations" do
       assert_end_location "nil"

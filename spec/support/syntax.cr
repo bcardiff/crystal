@@ -3,6 +3,16 @@ require "../../src/compiler/crystal/syntax"
 
 include Crystal
 
+CRYSTAL_KEYWORDS = %w(
+  begin nil true false yield with abstract
+  def macro require case select if unless include
+  extend class struct module enum while until return
+  next break lib fun alias pointerof sizeof
+  instance_sizeof offsetof typeof private protected asm out
+  end self in
+  do else elsif when rescue ensure
+)
+
 struct Number
   def int32
     NumberLiteral.new to_s, :i32

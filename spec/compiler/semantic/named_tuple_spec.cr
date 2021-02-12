@@ -332,4 +332,16 @@ describe "Semantic: named tuples" do
       call("")
       )) { int32 }
   end
+
+  CRYSTAL_KEYWORDS.each do |kw|
+    it "named tuples with keyword #{kw} can be used as external arguments" do
+      assert_type(%(
+      def call(#{kw} arg)
+        arg
+      end
+
+      call(**({#{kw}: 1}))
+      )) { int32 }
+    end
+  end
 end
