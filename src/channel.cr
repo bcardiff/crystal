@@ -428,6 +428,10 @@ class Channel(T)
       .uniq!(&.lock_object_id)
       .sort_by!(&.lock_object_id)
 
+    select_impl_with_locks(ops, ops_locks, non_blocking)
+  end
+
+  private def self.select_impl_with_locks(ops : Indexable(SelectAction), ops_locks, non_blocking)
     ops_locks.each &.lock
 
     ops.each_with_index do |op, index|
