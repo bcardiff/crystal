@@ -423,6 +423,20 @@ class Channel(T)
   private def self.select_impl(ops : Indexable(SelectAction), non_blocking)
     if ops.is_a?(Tuple) && ops.size == 1
       select_impl_with_locks(ops, ops, non_blocking)
+    elsif ops.is_a?(Tuple) && ops.size == 2
+      ops0 = ops.fetch(0, nil).not_nil!
+      ops1 = ops.fetch(1, nil).not_nil!
+
+      case (ops0.lock_object_id <=> ops1.lock_object_id)
+      when 0
+        select_impl_with_locks(ops, {ops0}, non_blocking)
+      when 1
+        select_impl_with_locks(ops, {ops1, ops0}, non_blocking)
+      when -1
+        select_impl_with_locks(ops, {ops0, ops1}, non_blocking)
+      else
+        raise "unreachable"
+      end
     else
       # Sort the operations by the channel they contain
       # This is to avoid deadlocks between concurrent `select` calls
