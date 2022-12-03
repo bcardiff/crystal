@@ -421,14 +421,18 @@ class Channel(T)
   end
 
   private def self.select_impl(ops : Indexable(SelectAction), non_blocking)
-    # Sort the operations by the channel they contain
-    # This is to avoid deadlocks between concurrent `select` calls
-    ops_locks = ops
-      .to_a
-      .uniq!(&.lock_object_id)
-      .sort_by!(&.lock_object_id)
+    if ops.is_a?(Tuple) && ops.size == 1
+      select_impl_with_locks(ops, ops, non_blocking)
+    else
+      # Sort the operations by the channel they contain
+      # This is to avoid deadlocks between concurrent `select` calls
+      ops_locks = ops
+        .to_a
+        .uniq!(&.lock_object_id)
+        .sort_by!(&.lock_object_id)
 
-    select_impl_with_locks(ops, ops_locks, non_blocking)
+      select_impl_with_locks(ops, ops_locks, non_blocking)
+    end
   end
 
   private def self.select_impl_with_locks(ops : Indexable(SelectAction), ops_locks, non_blocking)
